@@ -1,0 +1,73 @@
+Detta är pseudokod över de operationer som jag vill att mitt Webbshop API ska kunna utföra.
+
+Request: 
+GET /product 
+Response:
+Status: 200 OK
+[
+    {
+        "productId": 1,
+        "name": "Kvelertak - Meir",
+	"productType": "Vinyl",
+	"productInformation": [
+		{ "label": "Roadrunner", "releaseYear": 1899 }
+	],
+        "description": "Album released by Norwegian metal band Kvelertak.",
+        "price": 2000.00,
+	"imageUrl": "a url to a picture"
+    },
+    {
+          "productId": 2,
+          "name": "Periphery - Select Difficulty",
+          "productType": "Vinyl",
+          "productInformation": [
+              	{ "label": "3DOT Recordings", "releaseYear": 2016 }
+          ],
+          "description": "Album released by American progressive metal band Periphery.",
+          "price": 25000.00,
+          "imageUrl": "url"
+      }
+]
+Request:
+POST /cart
+Response:
+Status: 201 CREATED
+{
+	"cartId": 1,
+	"items": []
+}
+Request:
+POST /cart/{cartId}/items
+{
+	"productId": 1,
+	"quantity": 2
+}
+Response:
+Status: 200 OK
+{
+	"cartId": 1,
+	"items": [ 
+		{ "productId": 1, "quantity": 2 }
+	]
+}
+
+// Jag tänker att denna request uttryckligen tar bort den produkt som matchar {itemId} och i 
+// detta fall även tömmer kundvagnen eftersom det bara finns en sorts produkt i den. 
+Request:
+PUT /cart/{cartId}/items/{itemId}
+Request body:
+{
+	"quantity": 0
+}
+Response:
+Status: 204 No Content.
+
+// Denna request tömmer kundvagnen helt och hållet oavsett hur många olika produkter som finns i kundvagnen.
+Request:
+PUT /cart/{cartId}items/
+Request body:
+{
+	"items": []
+}
+Response:
+Status: 204 No Content.
