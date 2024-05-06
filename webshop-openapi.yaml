@@ -40,8 +40,8 @@ paths:
               required:
                 - callbackUrl
       callbacks:
-        myEvent: 
-          '{$request.body#/callbackUrl}':
+        callbackEvent: 
+          '{$request.body#/callbackUrl}': # The url is passed in the request body of /subscribe
             post:
               requestBody:
                 required: true
