@@ -1,7 +1,7 @@
 Detta är pseudokod över de operationer som jag vill att mitt Webbshop API ska kunna utföra.
 
 Request: 
-GET /product 
+GET /products 
 Response:
 Status: 200 OK
 [
