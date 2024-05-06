@@ -36,7 +36,7 @@ paths:
                 callbackUrl:
                   type: string
                   format: uri
-                  example: https://awesomeVinylWebShop.ax/send/callback/here
+                  example: https://awesomevinylwebshop.ax/send/callback/here
               required:
                 - callbackUrl
       callbacks:
@@ -52,12 +52,12 @@ paths:
                       properties:
                         message:
                           type: string
-                          example: You will receive notifications
+                          example: some event
                       required:
                         - message
               responses:
                 200:
-                  description: Callback event created
+                  description: YES!
       responses:
         201:
           description: Subscription created
@@ -110,6 +110,9 @@ paths:
   /order:
     post:
       summary: Create a new order based on an existing cart
+      security:
+        - oAuthTest:
+          - writeOrder
       requestBody:
         required: true
         content:
@@ -165,7 +168,22 @@ paths:
           description: Product(s) removed from cart
         404:
           description: Could not find cartId or productId
+servers:
+  - url: https://awesomevinylwebshop.ax
+    description: Production server. This is the real deal. LIVE DATA
+  - url: https://testshop.ax
+    description: Sandbox server for testing
 components:
+  securitySchemes:
+    oAuthTest:
+      type: oauth2
+      description: Trying the Authorization Code flow
+      flows:
+        authorizationCode :   
+          authorizationUrl: /oauth2/authorize
+          tokenUrl: /oauth.access
+          scopes:
+            writeOrder: Create order
   schemas:
     Product:
       type: object
