@@ -2,9 +2,7 @@ openapi: 3.0.1
 info:
   title: Web-shop API
   description: >
-    This is a REpresentational State Transfer (REST) API that is basically a CRUD interface.  <br>
-    These APIs are the absolutely most simple types you can come across, where we basically use a API only for data storage. <br>
-    However, it is important to remember that REST != CRUD
+    This is supposed to be a REST API for a webshop.
   version: 1.0.0
 paths:
   /products:
@@ -19,6 +17,71 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Product'
+  /products/{productId}/subscribe:
+    post:
+      summary: Get notification when product is back in stock
+      parameters:
+        - in: path
+          name: productId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                callbackUrl:
+                  type: string
+                  format: uri
+                  example: https://awesomeVinylWebShop.ax/send/callback/here
+              required:
+                - callbackUrl
+      callbacks:
+        myEvent: 
+          '{$request.body#/callbackUrl}':
+            post:
+              requestBody:
+                required: true
+                content:
+                  application/json:
+                    schema:
+                      type: object
+                      properties:
+                        message:
+                          type: string
+                          example: You will receive notifications
+                      required:
+                        - message
+              responses:
+                200:
+                  description: Callback event created
+      responses:
+        201:
+          description: Subscription created
+        404:
+          description: Product not found
+  /send/callback/here:
+    post:
+      summary: Send notification callback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                productId:
+                  type: string
+                  description: ID of the product that is back in stock
+                message:
+                  type: string
+                  example: Product is back in stock
+      responses:
+        200:
+          description: Notification sent successfully
   /cart:
     get:
       summary: Retrieve the cart
