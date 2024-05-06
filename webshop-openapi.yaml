@@ -38,62 +38,9 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Cart'
-  /cart/{cartId}/items:
-    post:
-      summary: Add item(s) to the cart
-      parameters:
-        - in: path
-          name: cartId
-          required: true
-          schema:
-            type: string
-        - in: query
-          name: item
-          description: Product to add to the cart
-          required: true
-          schema:
-            type: object
-            properties:
-              productId:
-                type: string
-                description: ID of the product
-              quantity:
-                type: integer
-                description: Quantity of products
-                minimum: 1
-      responses:
-        200:
-          description: Item(s) added to cart
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Cart'
+  /cart/{cartId}/items/{productId}:
     put:
-      summary: Empty the cart
-      parameters:
-        - in: path
-          name: cartId
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                items:
-                  type: array
-                  description: Empties the cart by replacing the list with an empty one
-                  items:
-                    type: string
-      responses:
-        204:
-          description: SUCCESS, cart emptied
-  /cart/{cartId}/items/{itemId}:
-    put:
-      summary: Update the cart
+      summary: Add or remove products from cart
       parameters:
         - in: path
           name: cartId
@@ -101,7 +48,7 @@ paths:
           schema:
             type: string
         - in: path
-          name: itemId
+          name: productId
           required: true
           schema:
             type: string
@@ -117,8 +64,10 @@ paths:
                   description: Updates quantity of the product in the cart (0 removes every product with that id)
                   minimum: 0
       responses:
+        200:
+          description: Product(s) added to cart
         204:
-          description: Cart updated successfully
+          description: Product(s) removed from cart
 components:
   schemas:
     Product:
