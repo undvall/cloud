@@ -36,38 +36,24 @@ Status: 201 CREATED
 	"cartId": 1,
 	"items": []
 }
+
+// En PUT request för att lägga till två Kvelertak vinylskivor.
+// cartId 1 och productId 1 och quantity 2
 Request:
-POST /cart/{cartId}/items
+PUT /cart/{cartId}/items/{productId}
+Request body:
 {
-	"productId": 1,
 	"quantity": 2
 }
 Response:
 Status: 200 OK
-{
-	"cartId": 1,
-	"items": [ 
-		{ "productId": 1, "quantity": 2 }
-	]
-}
 
-// Jag tänker att denna request uttryckligen tar bort den produkt som matchar {itemId} och i 
-// detta fall även tömmer kundvagnen eftersom det bara finns en sorts produkt i den. 
+// Ifall klienten skickar in cartId 1 och itemId 1 så kommer de tömma vagnen. 
 Request:
-PUT /cart/{cartId}/items/{itemId}
+PUT /cart/{cartId}/items/{productId}
 Request body:
 {
 	"quantity": 0
-}
-Response:
-Status: 204 No Content.
-
-// Denna request tömmer kundvagnen helt och hållet oavsett hur många olika produkter som finns i kundvagnen.
-Request:
-PUT /cart/{cartId}items/
-Request body:
-{
-	"items": []
 }
 Response:
 Status: 204 No Content.
