@@ -28,7 +28,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Cart'
+                allOf:
+                  - $ref: '#/components/schemas/Cart'
+                  - $ref: '#/components/schemas/DetailedCartInfo'
     post:
       summary: Create a new cart
       responses:
@@ -38,6 +40,30 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Cart'
+  /order:
+    post:
+      summary: Create a new order based on an existing cart
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                cartId:
+                  type: string
+                  description: ID of the cart to create the order from
+                shippingAddress:
+                  $ref: '#/components/schemas/Address'
+                billingAddress:
+                  $ref: '#/components/schemas/Address'
+      responses:
+        '201':
+          description: Order successfully created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
   /cart/{cartId}/items/{productId}:
     put:
       summary: Add or remove products from cart
@@ -104,3 +130,56 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Product'
+    DetailedCartInfo:
+      type: object
+      description: Detailed information about cart cost
+      properties:
+        totalCost:
+          type: number
+          description: Total cost of all products in the cart
+        currency:
+          type: string
+          description: Currency of the total cost
+    Address:
+      type: object
+      description: Parent Representation of an Address
+      properties:
+        street:
+          type: string
+        city:
+          type: string
+        zipCode:
+          type: string
+        country:
+          type: string
+    ShippingAddress:
+      allOf:
+        - $ref: '#/components/schemas/Address'
+      description: Shipping address for the order
+      properties:
+        shippingAddress:
+          type: string
+          description: Choose if this is the shippingaddress
+    BillingAddress:
+      allOf:
+        - $ref: '#/components/schemas/Address'
+      description: Billing address for the order
+      properties:
+        billingAddress:
+          type: string
+          description: Choose if this is the billingaddress
+    Order:
+      type: object
+      description: Representation of an Order Resource
+      properties:
+        orderId:
+          type: string
+          description: Unique identifier for the order
+        cartId:
+          type: string
+          description: ID of the cart used to create the order
+        address:
+          oneOf:
+            - $ref: '#/components/schemas/ShippingAddress'
+            - $ref: '#/components/schemas/BillingAddress'
+          description: Address for the order
