@@ -31,6 +31,8 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/Cart'
                   - $ref: '#/components/schemas/DetailedCartInfo'
+        404:
+          description: Could not find cart
     post:
       summary: Create a new cart
       responses:
@@ -40,6 +42,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Cart'
+        400:
+          description: Could not create cart
   /order:
     post:
       summary: Create a new order based on an existing cart
@@ -58,12 +62,14 @@ paths:
                 billingAddress:
                   $ref: '#/components/schemas/Address'
       responses:
-        '201':
+        201:
           description: Order successfully created
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Order'
+        400:
+          description: Invalid request body. Check cartId and address.
   /cart/{cartId}/items/{productId}:
     put:
       summary: Add or remove products from cart
@@ -94,6 +100,8 @@ paths:
           description: Product(s) added to cart
         204:
           description: Product(s) removed from cart
+        404:
+          description: Could not find cartId or productId
 components:
   schemas:
     Product:
