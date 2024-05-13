@@ -25,6 +25,13 @@ public final class S3BucketApp {
                         .region("eu-north-1")
                         .build())
                 .build(), GROUP_NAME);
+
+        new StaticContentBucketStack(app, GROUP_NAME + "-static-content-bucket", StackProps.builder()
+                .env(Environment.builder()
+                        .account(AWS_ACCOUNT_ID)
+                        .region("eu-north-1")
+                        .build())
+                .build(), GROUP_NAME);
         app.synth();
     }
 }

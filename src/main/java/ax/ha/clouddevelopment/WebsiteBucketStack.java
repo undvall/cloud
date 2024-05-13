@@ -1,8 +1,12 @@
 package ax.ha.clouddevelopment;
 
-import software.amazon.awscdk.*;
+import software.amazon.awscdk.CfnOutput;
+import software.amazon.awscdk.RemovalPolicy;
+import software.amazon.awscdk.Stack;
+import software.amazon.awscdk.StackProps;
 import software.amazon.awscdk.services.cloudfront.BehaviorOptions;
 import software.amazon.awscdk.services.cloudfront.Distribution;
+import software.amazon.awscdk.services.cloudfront.DistributionProps;
 import software.amazon.awscdk.services.cloudfront.origins.S3Origin;
 import software.amazon.awscdk.services.iam.AnyPrincipal;
 import software.amazon.awscdk.services.iam.Effect;
@@ -40,17 +44,6 @@ public class WebsiteBucketStack extends Stack {
                         .autoDeleteObjects(true)
                         .websiteIndexDocument("index.html")
                         .build());
-//                Bucket.Builder.create(this, "websiteBucket")
-//                        .bucketName(groupName + ".cloud-ha.com")
-//                        .publicReadAccess(true)
-//                        .blockPublicAccess(BlockPublicAccess.BLOCK_ACLS)
-//                        .removalPolicy(RemovalPolicy.DESTROY)
-//                        .autoDeleteObjects(true)
-//                        .websiteIndexDocument("index.html")
-//                        .build();
-//        final Distribution distribution = Distribution.Builder.create(this, "websiteDistribution")
-//                .defaultBehavior(BehaviorOptions.builder()
-//                        .origin(new S3Origin(bucket)))
 
         PolicyStatement statement = PolicyStatement.Builder.create()
                 .effect(Effect.ALLOW)
