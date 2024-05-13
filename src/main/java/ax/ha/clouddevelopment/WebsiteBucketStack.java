@@ -4,10 +4,6 @@ import software.amazon.awscdk.CfnOutput;
 import software.amazon.awscdk.RemovalPolicy;
 import software.amazon.awscdk.Stack;
 import software.amazon.awscdk.StackProps;
-import software.amazon.awscdk.services.cloudfront.BehaviorOptions;
-import software.amazon.awscdk.services.cloudfront.Distribution;
-import software.amazon.awscdk.services.cloudfront.DistributionProps;
-import software.amazon.awscdk.services.cloudfront.origins.S3Origin;
 import software.amazon.awscdk.services.iam.AnyPrincipal;
 import software.amazon.awscdk.services.iam.Effect;
 import software.amazon.awscdk.services.iam.PolicyStatement;
@@ -34,8 +30,8 @@ public class WebsiteBucketStack extends Stack {
                               final StackProps props,
                               final String groupName) {
         super(scope, id, props);
-        // S3 Bucket resource
-        final Bucket bucket = new Bucket(this, "websiteBucket",
+        // S3 Bucket resource for the website content
+        final Bucket websiteBucketbucket = new Bucket(this, "websiteBucket",
                 BucketProps.builder()
                         .bucketName(groupName + ".cloud-ha.com")
                         .publicReadAccess(true)
@@ -48,22 +44,22 @@ public class WebsiteBucketStack extends Stack {
         PolicyStatement statement = PolicyStatement.Builder.create()
                 .effect(Effect.ALLOW)
                 .actions(List.of("s3:GetObject"))
-                .resources(List.of(bucket.getBucketArn() + "/*"))
+                .resources(List.of(websiteBucketbucket.getBucketArn() + "/*"))
                 .principals(List.of(new AnyPrincipal()))
                 .conditions(Map.of("IpAddress", Map.of("aws:SourceIp", List.of("192.168.1.130/32"))))
                 .build();
 
-        bucket.addToResourcePolicy(statement);
+        websiteBucketbucket.addToResourcePolicy(statement);
 
         // Trying to add the website folder
         new BucketDeployment(this, "DeployWebsite", BucketDeploymentProps.builder()
                 .sources(List.of(Source.asset("src/main/resources/website")))
-                .destinationBucket(bucket)
+                .destinationBucket(websiteBucketbucket)
                 .build());
 
         new RecordSet(this, "RecordSet", RecordSetProps.builder()
                 .recordType(RecordType.A)
-                .target(RecordTarget.fromAlias(new BucketWebsiteTarget(bucket)))
+                .target(RecordTarget.fromAlias(new BucketWebsiteTarget(websiteBucketbucket)))
                 .zone(HostedZone.fromHostedZoneAttributes(this, "hostedZone", HostedZoneAttributes.builder()
                         .zoneName("cloud-ha.com")
                         .hostedZoneId("Z0413857YT73A0A8FRFF")
@@ -76,8 +72,31 @@ public class WebsiteBucketStack extends Stack {
         // to refer to your storage bucket using only a simple variable
         CfnOutput.Builder.create(this, "websiteBucketOutput")
                 .description(String.format("URL of your bucket.", groupName))
-                .value(bucket.getBucketWebsiteUrl())
+                .value(websiteBucketbucket.getBucketWebsiteUrl())
                 .exportName(groupName + "-s3-assignment-url")
+                .build();
+
+        // Another bucket for static content
+        final Bucket staticContentBucket = new Bucket(this, "staticContentBucket",
+                BucketProps.builder()
+                        .bucketName(groupName + "-static-content")
+                        .publicReadAccess(true)
+                        .blockPublicAccess(BlockPublicAccess.BLOCK_ACLS)
+                        .removalPolicy(RemovalPolicy.DESTROY)
+                        .autoDeleteObjects(true)
+                        .build());
+
+        // A new BucketDeployment for the static content folder
+        new BucketDeployment(this, "DeployStaticContent", BucketDeploymentProps.builder()
+                .sources(List.of(Source.asset("src/main/resources/static-content")))
+                .destinationBucket(staticContentBucket)
+                .build());
+
+        // Output for the new bucket
+        CfnOutput.Builder.create(this, "staticContentBucketOutput")
+                .description("URL of the static content bucket.")
+                .value(staticContentBucket.getBucketWebsiteUrl())
+                .exportName(groupName + "-static-content-url")
                 .build();
     }
 }
