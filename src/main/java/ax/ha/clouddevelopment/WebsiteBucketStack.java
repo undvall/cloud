@@ -94,23 +94,11 @@ public class WebsiteBucketStack extends Stack {
                 .destinationBucket(staticContentBucket)
                 .build());
 
-        // I tried using this approach but didnt know how to use the
-        // instance of the Distribution class i created :D
-//        Distribution distribution = new Distribution(this, "distro", DistributionProps.builder()
-//                .defaultBehavior(BehaviorOptions.builder()
-//                        .origin(new S3Origin(staticContentBucket))
-//                        .edgeLambdas(List.of(EdgeLambda.builder()
-//                                .eventType(LambdaEdgeEventType.VIEWER_REQUEST)
-//                                .build()))
-//                        .build())
-//                .priceClass(PriceClass.PRICE_CLASS_100)
-//                .geoRestriction(GeoRestriction.denylist("FI"))
-//                .build());
-
-
         // Not really sure if this works
         GeoRestriction restriction = GeoRestriction.denylist("FI", "AX", "SE");
 
+        // Need to create an instance of the Distribution class to be able to access
+        // the distribution domain name in the CloufFront output.
         Distribution distro = Distribution.Builder.create(this, "distro")
                 .defaultBehavior(BehaviorOptions.builder()
                         .origin(new S3Origin(staticContentBucket))
