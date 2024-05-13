@@ -94,6 +94,8 @@ public class WebsiteBucketStack extends Stack {
                 .destinationBucket(staticContentBucket)
                 .build());
 
+        // I tried using this approach but didnt know how to use the
+        // instance of the Distribution class i created :D
 //        Distribution distribution = new Distribution(this, "distro", DistributionProps.builder()
 //                .defaultBehavior(BehaviorOptions.builder()
 //                        .origin(new S3Origin(staticContentBucket))
@@ -105,19 +107,22 @@ public class WebsiteBucketStack extends Stack {
 //                .geoRestriction(GeoRestriction.denylist("FI"))
 //                .build());
 
-        Distribution.Builder.create(this, "distro")
+
+        // Not really sure if this works
+        GeoRestriction restriction = GeoRestriction.denylist("FI", "AX", "SE");
+
+        Distribution distro = Distribution.Builder.create(this, "distro")
                 .defaultBehavior(BehaviorOptions.builder()
                         .origin(new S3Origin(staticContentBucket))
                         .build())
                 .priceClass(PriceClass.PRICE_CLASS_100)
-                .geoRestriction(GeoRestriction.denylist("FI"))
+                .geoRestriction(restriction)
                 .build();
 
         // Output for the new bucket
         CfnOutput.Builder.create(this, "staticContentBucketOutput")
                 .description("URL of the static content bucket.")
-//                .value(distribution.getDistributionDomainName())
-                .value(staticContentBucket.getBucketDomainName())
+                .value(distro.getDistributionDomainName())
                 .exportName(groupName + "-static-content-url")
                 .build();
     }
