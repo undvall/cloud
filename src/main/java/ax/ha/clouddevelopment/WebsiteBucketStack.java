@@ -108,9 +108,6 @@ public class WebsiteBucketStack extends Stack {
         Distribution.Builder.create(this, "distro")
                 .defaultBehavior(BehaviorOptions.builder()
                         .origin(new S3Origin(staticContentBucket))
-//                        .edgeLambdas(List.of(EdgeLambda.builder()
-//                                .eventType(LambdaEdgeEventType.VIEWER_REQUEST)
-//                                .build()))
                         .build())
                 .priceClass(PriceClass.PRICE_CLASS_100)
                 .geoRestriction(GeoRestriction.denylist("FI"))
@@ -119,7 +116,8 @@ public class WebsiteBucketStack extends Stack {
         // Output for the new bucket
         CfnOutput.Builder.create(this, "staticContentBucketOutput")
                 .description("URL of the static content bucket.")
-                .value(staticContentBucket.getBucketWebsiteUrl())
+//                .value(distribution.getDistributionDomainName())
+                .value(staticContentBucket.getBucketDomainName())
                 .exportName(groupName + "-static-content-url")
                 .build();
     }
