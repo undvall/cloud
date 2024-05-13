@@ -4,6 +4,8 @@ import software.amazon.awscdk.CfnOutput;
 import software.amazon.awscdk.RemovalPolicy;
 import software.amazon.awscdk.Stack;
 import software.amazon.awscdk.StackProps;
+import software.amazon.awscdk.services.cloudfront.*;
+import software.amazon.awscdk.services.cloudfront.origins.S3Origin;
 import software.amazon.awscdk.services.iam.AnyPrincipal;
 import software.amazon.awscdk.services.iam.Effect;
 import software.amazon.awscdk.services.iam.PolicyStatement;
@@ -91,6 +93,28 @@ public class WebsiteBucketStack extends Stack {
                 .sources(List.of(Source.asset("src/main/resources/static-content")))
                 .destinationBucket(staticContentBucket)
                 .build());
+
+//        Distribution distribution = new Distribution(this, "distro", DistributionProps.builder()
+//                .defaultBehavior(BehaviorOptions.builder()
+//                        .origin(new S3Origin(staticContentBucket))
+//                        .edgeLambdas(List.of(EdgeLambda.builder()
+//                                .eventType(LambdaEdgeEventType.VIEWER_REQUEST)
+//                                .build()))
+//                        .build())
+//                .priceClass(PriceClass.PRICE_CLASS_100)
+//                .geoRestriction(GeoRestriction.denylist("FI"))
+//                .build());
+
+        Distribution.Builder.create(this, "distro")
+                .defaultBehavior(BehaviorOptions.builder()
+                        .origin(new S3Origin(staticContentBucket))
+//                        .edgeLambdas(List.of(EdgeLambda.builder()
+//                                .eventType(LambdaEdgeEventType.VIEWER_REQUEST)
+//                                .build()))
+                        .build())
+                .priceClass(PriceClass.PRICE_CLASS_100)
+                .geoRestriction(GeoRestriction.denylist("FI"))
+                .build();
 
         // Output for the new bucket
         CfnOutput.Builder.create(this, "staticContentBucketOutput")
