@@ -1,7 +1,9 @@
 package ax.ha.clouddevelopment;
 
-import org.jetbrains.annotations.NotNull;
 import software.amazon.awscdk.*;
+import software.amazon.awscdk.services.cloudfront.BehaviorOptions;
+import software.amazon.awscdk.services.cloudfront.Distribution;
+import software.amazon.awscdk.services.cloudfront.origins.S3Origin;
 import software.amazon.awscdk.services.iam.AnyPrincipal;
 import software.amazon.awscdk.services.iam.Effect;
 import software.amazon.awscdk.services.iam.PolicyStatement;
@@ -9,6 +11,7 @@ import software.amazon.awscdk.services.route53.*;
 import software.amazon.awscdk.services.route53.targets.BucketWebsiteTarget;
 import software.amazon.awscdk.services.s3.BlockPublicAccess;
 import software.amazon.awscdk.services.s3.Bucket;
+import software.amazon.awscdk.services.s3.BucketProps;
 import software.amazon.awscdk.services.s3.deployment.BucketDeployment;
 import software.amazon.awscdk.services.s3.deployment.BucketDeploymentProps;
 import software.amazon.awscdk.services.s3.deployment.Source;
@@ -28,15 +31,26 @@ public class WebsiteBucketStack extends Stack {
                               final String groupName) {
         super(scope, id, props);
         // S3 Bucket resource
-        final Bucket bucket =
-                Bucket.Builder.create(this, "websiteBucket")
+        final Bucket bucket = new Bucket(this, "websiteBucket",
+                BucketProps.builder()
                         .bucketName(groupName + ".cloud-ha.com")
                         .publicReadAccess(true)
                         .blockPublicAccess(BlockPublicAccess.BLOCK_ACLS)
                         .removalPolicy(RemovalPolicy.DESTROY)
                         .autoDeleteObjects(true)
                         .websiteIndexDocument("index.html")
-                        .build();
+                        .build());
+//                Bucket.Builder.create(this, "websiteBucket")
+//                        .bucketName(groupName + ".cloud-ha.com")
+//                        .publicReadAccess(true)
+//                        .blockPublicAccess(BlockPublicAccess.BLOCK_ACLS)
+//                        .removalPolicy(RemovalPolicy.DESTROY)
+//                        .autoDeleteObjects(true)
+//                        .websiteIndexDocument("index.html")
+//                        .build();
+//        final Distribution distribution = Distribution.Builder.create(this, "websiteDistribution")
+//                .defaultBehavior(BehaviorOptions.builder()
+//                        .origin(new S3Origin(bucket)))
 
         PolicyStatement statement = PolicyStatement.Builder.create()
                 .effect(Effect.ALLOW)
@@ -50,7 +64,7 @@ public class WebsiteBucketStack extends Stack {
 
         // Trying to add the website folder
         new BucketDeployment(this, "DeployWebsite", BucketDeploymentProps.builder()
-                .sources(List.of(Source.asset("src/main/resources")))
+                .sources(List.of(Source.asset("src/main/resources/website")))
                 .destinationBucket(bucket)
                 .build());
 
