@@ -85,8 +85,6 @@ public class WebsiteBucketStack extends Stack {
                         .blockPublicAccess(BlockPublicAccess.BLOCK_ACLS)
                         .removalPolicy(RemovalPolicy.DESTROY)
                         .autoDeleteObjects(true)
-                        .objectOwnership(ObjectOwnership.BUCKET_OWNER_ENFORCED)
-                        .accessControl(BucketAccessControl.LOG_DELIVERY_WRITE)
                         .build());
 
         // Bucket for static content
