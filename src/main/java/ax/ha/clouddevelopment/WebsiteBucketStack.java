@@ -14,6 +14,7 @@ import software.amazon.awscdk.services.route53.targets.BucketWebsiteTarget;
 import software.amazon.awscdk.services.s3.BlockPublicAccess;
 import software.amazon.awscdk.services.s3.Bucket;
 import software.amazon.awscdk.services.s3.BucketProps;
+import software.amazon.awscdk.services.s3.ObjectOwnership;
 import software.amazon.awscdk.services.s3.deployment.BucketDeployment;
 import software.amazon.awscdk.services.s3.deployment.BucketDeploymentProps;
 import software.amazon.awscdk.services.s3.deployment.Source;
@@ -78,7 +79,9 @@ public class WebsiteBucketStack extends Stack {
                 .exportName(groupName + "-s3-assignment-url")
                 .build();
 
-        // Another bucket for static content
+
+
+        // Bucket for static content
         final Bucket staticContentBucket = new Bucket(this, "staticContentBucket",
                 BucketProps.builder()
                         .bucketName(groupName + "-static-content")
@@ -88,14 +91,27 @@ public class WebsiteBucketStack extends Stack {
                         .autoDeleteObjects(true)
                         .build());
 
+
+//        // Bucket for storing the access-logs
+//        final Bucket accessLogBucket = new Bucket(this, "accessLogBucket",
+//                BucketProps.builder()
+//                        .bucketName(groupName + "-access-logs")
+//                        .publicReadAccess(true)
+//                        .objectOwnership(ObjectOwnership.OBJECT_WRITER)
+//                        .build());
+
         // A new BucketDeployment for the static content folder
         new BucketDeployment(this, "DeployStaticContent", BucketDeploymentProps.builder()
                 .sources(List.of(Source.asset("src/main/resources/static-content")))
                 .destinationBucket(staticContentBucket)
                 .build());
 
-        // Not really sure if this works
-        GeoRestriction restriction = GeoRestriction.denylist("FI", "AX", "SE");
+//        // Creating a list of countries to block
+//        GeoRestriction restriction = GeoRestriction.denylist("FI", "AX", "SE");
+
+        // For testing purpose
+        GeoRestriction restriction = GeoRestriction.allowlist("FI", "AX", "SE");
+
 
         // Need to create an instance of the Distribution class to be able to access
         // the distribution domain name in the CloufFront output.
@@ -107,7 +123,7 @@ public class WebsiteBucketStack extends Stack {
                 .geoRestriction(restriction)
                 .build();
 
-        // Output for the new bucket
+        // Output for the static-content bucket
         CfnOutput.Builder.create(this, "staticContentBucketOutput")
                 .description("URL of the static content bucket.")
                 .value(distro.getDistributionDomainName())
