@@ -79,7 +79,16 @@ public class WebsiteBucketStack extends Stack {
                 .exportName(groupName + "-s3-assignment-url")
                 .build();
 
-
+        // Bucket for storing the access-logs
+        final Bucket accessLogBucket = new Bucket(this, "accessLogBucket",
+                BucketProps.builder()
+                        .bucketName(groupName + "-access-logs")
+                        .publicReadAccess(false)
+                        .blockPublicAccess(BlockPublicAccess.BLOCK_ACLS)
+                        .removalPolicy(RemovalPolicy.DESTROY)
+                        .autoDeleteObjects(true)
+//                        .objectOwnership(ObjectOwnership.BUCKET_OWNER_ENFORCED)
+                        .build());
 
         // Bucket for static content
         final Bucket staticContentBucket = new Bucket(this, "staticContentBucket",
@@ -89,16 +98,8 @@ public class WebsiteBucketStack extends Stack {
                         .blockPublicAccess(BlockPublicAccess.BLOCK_ACLS)
                         .removalPolicy(RemovalPolicy.DESTROY)
                         .autoDeleteObjects(true)
+                        .serverAccessLogsBucket(accessLogBucket)
                         .build());
-
-
-//        // Bucket for storing the access-logs
-//        final Bucket accessLogBucket = new Bucket(this, "accessLogBucket",
-//                BucketProps.builder()
-//                        .bucketName(groupName + "-access-logs")
-//                        .publicReadAccess(true)
-//                        .objectOwnership(ObjectOwnership.OBJECT_WRITER)
-//                        .build());
 
         // A new BucketDeployment for the static content folder
         new BucketDeployment(this, "DeployStaticContent", BucketDeploymentProps.builder()
@@ -109,9 +110,8 @@ public class WebsiteBucketStack extends Stack {
 //        // Creating a list of countries to block
 //        GeoRestriction restriction = GeoRestriction.denylist("FI", "AX", "SE");
 
-        // For testing purpose
+//        // For testing purpose
         GeoRestriction restriction = GeoRestriction.allowlist("FI", "AX", "SE");
-
 
         // Need to create an instance of the Distribution class to be able to access
         // the distribution domain name in the CloufFront output.
