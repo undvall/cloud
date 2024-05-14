@@ -11,10 +11,7 @@ import software.amazon.awscdk.services.iam.Effect;
 import software.amazon.awscdk.services.iam.PolicyStatement;
 import software.amazon.awscdk.services.route53.*;
 import software.amazon.awscdk.services.route53.targets.BucketWebsiteTarget;
-import software.amazon.awscdk.services.s3.BlockPublicAccess;
-import software.amazon.awscdk.services.s3.Bucket;
-import software.amazon.awscdk.services.s3.BucketProps;
-import software.amazon.awscdk.services.s3.ObjectOwnership;
+import software.amazon.awscdk.services.s3.*;
 import software.amazon.awscdk.services.s3.deployment.BucketDeployment;
 import software.amazon.awscdk.services.s3.deployment.BucketDeploymentProps;
 import software.amazon.awscdk.services.s3.deployment.Source;
@@ -79,6 +76,7 @@ public class WebsiteBucketStack extends Stack {
                 .exportName(groupName + "-s3-assignment-url")
                 .build();
 
+        // Continue with the access-logs bucket!
         // Bucket for storing the access-logs
         final Bucket accessLogBucket = new Bucket(this, "accessLogBucket",
                 BucketProps.builder()
@@ -87,7 +85,8 @@ public class WebsiteBucketStack extends Stack {
                         .blockPublicAccess(BlockPublicAccess.BLOCK_ACLS)
                         .removalPolicy(RemovalPolicy.DESTROY)
                         .autoDeleteObjects(true)
-//                        .objectOwnership(ObjectOwnership.BUCKET_OWNER_ENFORCED)
+                        .objectOwnership(ObjectOwnership.BUCKET_OWNER_ENFORCED)
+                        .accessControl(BucketAccessControl.LOG_DELIVERY_WRITE)
                         .build());
 
         // Bucket for static content
@@ -99,6 +98,7 @@ public class WebsiteBucketStack extends Stack {
                         .removalPolicy(RemovalPolicy.DESTROY)
                         .autoDeleteObjects(true)
                         .serverAccessLogsBucket(accessLogBucket)
+                        .serverAccessLogsPrefix("logs")
                         .build());
 
         // A new BucketDeployment for the static content folder
