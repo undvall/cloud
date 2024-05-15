@@ -1,23 +1,28 @@
 package ax.ha.clouddevelopment;
 
-import org.jetbrains.annotations.NotNull;
 import software.amazon.awscdk.CfnOutput;
 import software.amazon.awscdk.RemovalPolicy;
 import software.amazon.awscdk.Stack;
 import software.amazon.awscdk.StackProps;
-import software.amazon.awscdk.services.cloudfront.*;
+import software.amazon.awscdk.services.cloudfront.BehaviorOptions;
+import software.amazon.awscdk.services.cloudfront.Distribution;
+import software.amazon.awscdk.services.cloudfront.GeoRestriction;
+import software.amazon.awscdk.services.cloudfront.PriceClass;
 import software.amazon.awscdk.services.cloudfront.origins.S3Origin;
 import software.amazon.awscdk.services.ec2.*;
+import software.amazon.awscdk.services.elasticloadbalancingv2.*;
+import software.amazon.awscdk.services.elasticloadbalancingv2.targets.InstanceTarget;
 import software.amazon.awscdk.services.iam.*;
 import software.amazon.awscdk.services.route53.*;
 import software.amazon.awscdk.services.route53.targets.BucketWebsiteTarget;
-import software.amazon.awscdk.services.s3.*;
+import software.amazon.awscdk.services.s3.BlockPublicAccess;
+import software.amazon.awscdk.services.s3.Bucket;
+import software.amazon.awscdk.services.s3.BucketProps;
 import software.amazon.awscdk.services.s3.deployment.BucketDeployment;
 import software.amazon.awscdk.services.s3.deployment.BucketDeploymentProps;
 import software.amazon.awscdk.services.s3.deployment.Source;
 import software.constructs.Construct;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -130,6 +135,7 @@ public class WebsiteBucketStack extends Stack {
                 "docker run -d --name my-application -p 80:8080 292370674225.dkr.ecr.eu-north-1.amazonaws.com/webshop-api:latest"
         );
 
+
         // Defining the policies here for readability and i think it makes it easier to change in the future
         final List<IManagedPolicy> managedPolicies = Arrays.asList(
                 ManagedPolicy.fromAwsManagedPolicyName("AmazonSSMManagedInstanceCore"),
@@ -140,7 +146,26 @@ public class WebsiteBucketStack extends Stack {
                 .managedPolicies(managedPolicies)
                 .build();
 
-        // A new BucketDeployment for the static content folder
+        ApplicationLoadBalancer alb =
+                ApplicationLoadBalancer.Builder.create(this, "applicationLoadBalancer")
+                        .vpc(vpc)
+                        .vpcSubnets(SubnetSelection.builder()
+                                .subnetType(SubnetType.PUBLIC)
+                                .build())
+                        .internetFacing(true)
+                        .build();
+
+        ApplicationListener listener = alb.addListener("listener", BaseApplicationListenerProps.builder()
+                .protocol(ApplicationProtocol.HTTP)
+                .open(true)
+                .build());
+
+        ApplicationTargetGroup targetGroup = listener.addTargets("targetGroup", AddApplicationTargetsProps.builder()
+                .targets(List.of(new InstanceTarget(ec2Instance, 80)))
+                .build());
+
+        alb.getConnections().allowTo(securityGroup, Port.tcp(80));
+
         new BucketDeployment(this, "DeployStaticContent", BucketDeploymentProps.builder()
                 .sources(List.of(Source.asset("src/main/resources/static-content")))
                 .destinationBucket(staticContentBucket)
