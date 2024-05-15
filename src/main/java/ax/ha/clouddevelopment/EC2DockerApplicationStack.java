@@ -1,5 +1,7 @@
 package ax.ha.clouddevelopment;
 
+import software.amazon.awscdk.CfnOutput;
+import software.amazon.awscdk.CfnOutputProps;
 import software.amazon.awscdk.Stack;
 import software.amazon.awscdk.StackProps;
 import software.amazon.awscdk.services.ec2.*;
@@ -74,32 +76,40 @@ public class EC2DockerApplicationStack extends Stack {
                 "docker run -d --name my-application -p 80:8080 292370674225.dkr.ecr.eu-north-1.amazonaws.com/webshop-api:latest"
         );
 
-//        final ApplicationLoadBalancer loadBalancer = new ApplicationLoadBalancer(this, "applicationLoadBalancer",
-//                ApplicationLoadBalancerProps.builder()
-//                        .vpc(vpc)
-//                        .vpcSubnets(SubnetSelection.builder()
-//                                .subnetType(SubnetType.PUBLIC)
-//                                .build())
-//                        .internetFacing(true)
-//                        .build());
-//
-//        ApplicationListener listener = loadBalancer.addListener("listener", BaseApplicationListenerProps.builder()
-//                .protocol(ApplicationProtocol.HTTP)
-//                .open(true)
-//                .build());
-//
-//        listener.addTargets("targetGroup", AddApplicationTargetsProps.builder()
-//                .port(80)
-//                .targets(List.of(new InstanceTarget(ec2Instance, 80)))
-//                .build());
-//
-//        loadBalancer.getConnections().allowTo(securityGroup, Port.tcp(80));
-//
-//        new RecordSet(this, "loadBalancer", RecordSetProps.builder()
-//                .recordType(RecordType.A)
-//                .target(RecordTarget.fromAlias(new LoadBalancerTarget(loadBalancer)))
-//                .zone(hostedZone)
-//                .recordName(groupName + "-api.cloud-ha.com")
-//                .build());
+        final ApplicationLoadBalancer loadBalancer = new ApplicationLoadBalancer(this, "applicationLoadBalancer",
+                ApplicationLoadBalancerProps.builder()
+                        .vpc(vpc)
+                        .vpcSubnets(SubnetSelection.builder()
+                                .subnetType(SubnetType.PUBLIC)
+                                .build())
+                        .internetFacing(true)
+                        .build());
+
+        ApplicationListener listener = loadBalancer.addListener("listener", BaseApplicationListenerProps.builder()
+                .protocol(ApplicationProtocol.HTTP)
+                .open(true)
+                .build());
+
+        listener.addTargets("targetGroup", AddApplicationTargetsProps.builder()
+                .port(80)
+                .targets(List.of(new InstanceTarget(ec2Instance, 80)))
+                .build());
+
+        new RecordSet(this, "loadBalancer", RecordSetProps.builder()
+                .recordType(RecordType.A)
+                .target(RecordTarget.fromAlias(new LoadBalancerTarget(loadBalancer)))
+                .zone(hostedZone)
+                .recordName(groupName + "-api.cloud-ha.com")
+                .build());
+
+        loadBalancer.getConnections().allowTo(securityGroup, Port.tcp(80));
+
+        // Trying to troubleshoot by outputting some information
+        // TODO the target group is unhealthy, figure out why!!!!!!!!!!!!!!!!
+        new CfnOutput(this, "TargetGroupInfo", CfnOutputProps.builder()
+                .value(loadBalancer.getLoadBalancerDnsName())
+                .description("Whats going on?!?! Whats going on?!?!")
+                .build());
+
     }
 }
