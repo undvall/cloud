@@ -15,6 +15,7 @@ import software.amazon.awscdk.services.elasticloadbalancingv2.targets.InstanceTa
 import software.amazon.awscdk.services.iam.*;
 import software.amazon.awscdk.services.route53.*;
 import software.amazon.awscdk.services.route53.targets.BucketWebsiteTarget;
+import software.amazon.awscdk.services.route53.targets.LoadBalancerTarget;
 import software.amazon.awscdk.services.s3.BlockPublicAccess;
 import software.amazon.awscdk.services.s3.Bucket;
 import software.amazon.awscdk.services.s3.BucketProps;
@@ -103,7 +104,7 @@ public class WebsiteBucketStack extends Stack {
         // Needed to create an IVpc instead of Vpc since fromVpcAttributes returns IVpc.
         // Should be okay because the .vpc in security-group accepts anything that implements the IVpc interface.
         // Weird, i have to specify availabilityZones even though im referencing an already existing Vpc
-        IVpc vpc = Vpc.fromVpcAttributes(this, "MyVpc", VpcAttributes.builder()
+        IVpc vpc = Vpc.fromVpcAttributes(this, "Vpc", VpcAttributes.builder()
                 .availabilityZones(List.of("eu-north-1")) // Just guessing that this is valid
                 .vpcId("vpc-5e8e3b37")
                 .build());
@@ -141,30 +142,48 @@ public class WebsiteBucketStack extends Stack {
                 ManagedPolicy.fromAwsManagedPolicyName("AmazonSSMManagedInstanceCore"),
                 ManagedPolicy.fromAwsManagedPolicyName("AmazonEC2ContainerRegistryReadOnly"));
 
-        final Role iamRole = Role.Builder.create(this, "IAMRole")
+        Role.Builder.create(this, "Role")
                 .assumedBy(new ServicePrincipal("ec2.amazonaws.com"))
                 .managedPolicies(managedPolicies)
                 .build();
 
-        ApplicationLoadBalancer alb =
-                ApplicationLoadBalancer.Builder.create(this, "applicationLoadBalancer")
+        final ApplicationLoadBalancer loadBalancer = new ApplicationLoadBalancer(this, "applicationLoadBalancer",
+                ApplicationLoadBalancerProps.builder()
                         .vpc(vpc)
                         .vpcSubnets(SubnetSelection.builder()
                                 .subnetType(SubnetType.PUBLIC)
                                 .build())
                         .internetFacing(true)
-                        .build();
+                        .build());
+//                ApplicationLoadBalancer.Builder.create(this, "applicationLoadBalancer")
+//                        .vpc(vpc)
+//                        .vpcSubnets(SubnetSelection.builder()
+//                                .subnetType(SubnetType.PUBLIC)
+//                                .build())
+//                        .internetFacing(true)
+//                        .build();
 
-        ApplicationListener listener = alb.addListener("listener", BaseApplicationListenerProps.builder()
+        ApplicationListener listener = loadBalancer.addListener("listener", BaseApplicationListenerProps.builder()
                 .protocol(ApplicationProtocol.HTTP)
                 .open(true)
                 .build());
 
-        ApplicationTargetGroup targetGroup = listener.addTargets("targetGroup", AddApplicationTargetsProps.builder()
+        listener.addTargets("targetGroup", AddApplicationTargetsProps.builder()
                 .targets(List.of(new InstanceTarget(ec2Instance, 80)))
                 .build());
 
-        alb.getConnections().allowTo(securityGroup, Port.tcp(80));
+        loadBalancer.getConnections().allowTo(securityGroup, Port.tcp(80));
+
+        // Dont know if this works, just copy-pasted the previous RecordSet and changed the target and recordname.
+        new RecordSet(this, "loadBalancer", RecordSetProps.builder()
+                .recordType(RecordType.A)
+                .target(RecordTarget.fromAlias(new LoadBalancerTarget(loadBalancer)))
+                .zone(HostedZone.fromHostedZoneAttributes(this, "hostedZone", HostedZoneAttributes.builder()
+                        .zoneName("cloud-ha.com")
+                        .hostedZoneId("Z0413857YT73A0A8FRFF")
+                        .build()))
+                .recordName(groupName + "-api.cloud-ha.com")
+                .build());
 
         new BucketDeployment(this, "DeployStaticContent", BucketDeploymentProps.builder()
                 .sources(List.of(Source.asset("src/main/resources/static-content")))
