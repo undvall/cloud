@@ -22,6 +22,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import static software.amazon.awscdk.services.ec2.InstanceClass.BURSTABLE3;
+import static software.amazon.awscdk.services.ec2.InstanceSize.MICRO;
+
 public class WebsiteBucketStack extends Stack {
 
     /**
@@ -105,6 +108,27 @@ public class WebsiteBucketStack extends Stack {
                 .allowAllOutbound(true)
                 .securityGroupName("super-secure")
                 .build();
+
+        final Instance ec2Instance = new Instance(this, "kicke-EC2", InstanceProps.builder()
+                .vpc(vpc)
+                .instanceName(groupName + "-super-server")
+                .instanceType(InstanceType.of(BURSTABLE3, MICRO))
+                .machineImage(AmazonLinuxImage.Builder.create()
+                        .generation(AmazonLinuxGeneration.AMAZON_LINUX_2)
+                        .cpuType(AmazonLinuxCpuType.X86_64)
+                        .build())
+                .securityGroup(securityGroup)
+                .vpcSubnets(SubnetSelection.builder()
+                        .subnetType(SubnetType.PUBLIC)
+                        .build())
+                .build());
+
+        ec2Instance.addUserData(
+                "yum install docker -y",
+                "sudo systemctl start docker",
+                "aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin 292370674225.dkr.ecr.eu-north-1.amazonaws.com",
+                "docker run -d --name my-application -p 80:8080 292370674225.dkr.ecr.eu-north-1.amazonaws.com/webshop-api:latest"
+        );
 
         // Defining the policies here for readability and i think it makes it easier to change in the future
         final List<IManagedPolicy> managedPolicies = Arrays.asList(
