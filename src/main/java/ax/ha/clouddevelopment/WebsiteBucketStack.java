@@ -6,6 +6,7 @@ import software.amazon.awscdk.Stack;
 import software.amazon.awscdk.StackProps;
 import software.amazon.awscdk.services.cloudfront.*;
 import software.amazon.awscdk.services.cloudfront.origins.S3Origin;
+import software.amazon.awscdk.services.ec2.SecurityGroup;
 import software.amazon.awscdk.services.iam.AnyPrincipal;
 import software.amazon.awscdk.services.iam.Effect;
 import software.amazon.awscdk.services.iam.PolicyStatement;
@@ -67,16 +68,6 @@ public class WebsiteBucketStack extends Stack {
                 .recordName(groupName + ".cloud-ha.com")
                 .build());
 
-
-        // Bucket ARN CfnOutput variable. This is helpful for a later stage when simply wanting
-        // to refer to your storage bucket using only a simple variable
-        CfnOutput.Builder.create(this, "websiteBucketOutput")
-                .description(String.format("URL of your bucket.", groupName))
-                .value(websiteBucketbucket.getBucketWebsiteUrl())
-                .exportName(groupName + "-s3-assignment-url")
-                .build();
-
-        // Continue with the access-logs bucket!
         // Bucket for storing the access-logs
         final Bucket accessLogBucket = new Bucket(this, "accessLogBucket",
                 BucketProps.builder()
@@ -99,17 +90,22 @@ public class WebsiteBucketStack extends Stack {
                         .serverAccessLogsPrefix("logs")
                         .build());
 
+        final SecurityGroup securityGroup = SecurityGroup.Builder.create(this, "securityGroup")
+                .allowAllOutbound(true)
+                .securityGroupName("super-secure")
+                .build();
+
         // A new BucketDeployment for the static content folder
         new BucketDeployment(this, "DeployStaticContent", BucketDeploymentProps.builder()
                 .sources(List.of(Source.asset("src/main/resources/static-content")))
                 .destinationBucket(staticContentBucket)
                 .build());
 
-//        // Creating a list of countries to block
-//        GeoRestriction restriction = GeoRestriction.denylist("FI", "AX", "SE");
+        // Creating a list of countries to block
+        GeoRestriction restriction = GeoRestriction.denylist("SE");
 
-//        // For testing purpose
-        GeoRestriction restriction = GeoRestriction.allowlist("FI", "AX", "SE");
+////        // For testing purpose
+//        GeoRestriction restriction = GeoRestriction.allowlist("FI", "AX", "SE");
 
         // Need to create an instance of the Distribution class to be able to access
         // the distribution domain name in the CloufFront output.
@@ -126,6 +122,14 @@ public class WebsiteBucketStack extends Stack {
                 .description("URL of the static content bucket.")
                 .value(distro.getDistributionDomainName())
                 .exportName(groupName + "-static-content-url")
+                .build();
+
+        // Bucket ARN CfnOutput variable. This is helpful for a later stage when simply wanting
+        // to refer to your storage bucket using only a simple variable
+        CfnOutput.Builder.create(this, "websiteBucketOutput")
+                .description(String.format("URL of your bucket.", groupName))
+                .value(websiteBucketbucket.getBucketWebsiteUrl())
+                .exportName(groupName + "-s3-assignment-url")
                 .build();
     }
 }
