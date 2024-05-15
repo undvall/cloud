@@ -1,12 +1,13 @@
 package ax.ha.clouddevelopment;
 
+import org.jetbrains.annotations.NotNull;
 import software.amazon.awscdk.CfnOutput;
 import software.amazon.awscdk.RemovalPolicy;
 import software.amazon.awscdk.Stack;
 import software.amazon.awscdk.StackProps;
 import software.amazon.awscdk.services.cloudfront.*;
 import software.amazon.awscdk.services.cloudfront.origins.S3Origin;
-import software.amazon.awscdk.services.ec2.SecurityGroup;
+import software.amazon.awscdk.services.ec2.*;
 import software.amazon.awscdk.services.iam.*;
 import software.amazon.awscdk.services.route53.*;
 import software.amazon.awscdk.services.route53.targets.BucketWebsiteTarget;
@@ -91,7 +92,16 @@ public class WebsiteBucketStack extends Stack {
                         .build());
 
 
+        // Needed to create an IVpc instead of Vpc since fromVpcAttributes returns IVpc.
+        // Should be okay because the .vpc in security-group accepts anything that implements the IVpc interface.
+        // Weird, i have to specify availabilityZones even though im referencing an already existing Vpc
+        IVpc vpc = Vpc.fromVpcAttributes(this, "MyVpc", VpcAttributes.builder()
+                .availabilityZones(List.of("eu-north-1")) // Just guessing that this is valid
+                .vpcId("vpc-5e8e3b37")
+                .build());
+
         final SecurityGroup securityGroup = SecurityGroup.Builder.create(this, "securityGroup")
+                .vpc(vpc)
                 .allowAllOutbound(true)
                 .securityGroupName("super-secure")
                 .build();
