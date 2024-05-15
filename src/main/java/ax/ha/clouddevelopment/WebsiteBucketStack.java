@@ -7,9 +7,7 @@ import software.amazon.awscdk.StackProps;
 import software.amazon.awscdk.services.cloudfront.*;
 import software.amazon.awscdk.services.cloudfront.origins.S3Origin;
 import software.amazon.awscdk.services.ec2.SecurityGroup;
-import software.amazon.awscdk.services.iam.AnyPrincipal;
-import software.amazon.awscdk.services.iam.Effect;
-import software.amazon.awscdk.services.iam.PolicyStatement;
+import software.amazon.awscdk.services.iam.*;
 import software.amazon.awscdk.services.route53.*;
 import software.amazon.awscdk.services.route53.targets.BucketWebsiteTarget;
 import software.amazon.awscdk.services.s3.*;
@@ -18,6 +16,8 @@ import software.amazon.awscdk.services.s3.deployment.BucketDeploymentProps;
 import software.amazon.awscdk.services.s3.deployment.Source;
 import software.constructs.Construct;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -90,9 +90,20 @@ public class WebsiteBucketStack extends Stack {
                         .serverAccessLogsPrefix("logs")
                         .build());
 
+
         final SecurityGroup securityGroup = SecurityGroup.Builder.create(this, "securityGroup")
                 .allowAllOutbound(true)
                 .securityGroupName("super-secure")
+                .build();
+
+        // Defining the policies here for readability and i think it makes it easier to change in the future
+        final List<IManagedPolicy> managedPolicies = Arrays.asList(
+                ManagedPolicy.fromAwsManagedPolicyName("AmazonSSMManagedInstanceCore"),
+                ManagedPolicy.fromAwsManagedPolicyName("AmazonEC2ContainerRegistryReadOnly"));
+
+        final Role iamRole = Role.Builder.create(this, "IAMRole")
+                .assumedBy(new ServicePrincipal("ec2.amazonaws.com"))
+                .managedPolicies(managedPolicies)
                 .build();
 
         // A new BucketDeployment for the static content folder
