@@ -46,34 +46,35 @@ public class EC2DockerApplicationStack extends Stack {
                 .build();
 
         // Defining the policies here for readability and i think it makes it easier to change in the future
-        final List<IManagedPolicy> managedPolicies = Arrays.asList(
-                ManagedPolicy.fromAwsManagedPolicyName("AmazonSSMManagedInstanceCore"),
-                ManagedPolicy.fromAwsManagedPolicyName("AmazonEC2ContainerRegistryReadOnly"));
+//        final List<IManagedPolicy> managedPolicies = Arrays.asList(
+//                ManagedPolicy.fromAwsManagedPolicyName("AmazonSSMManagedInstanceCore"),
+//                ManagedPolicy.fromAwsManagedPolicyName("AmazonEC2ContainerRegistryReadOnly"));
 
-        Role.Builder.create(this, "EC2Role")
+        final Role role = Role.Builder.create(this, "EC2Role")
                 .assumedBy(new ServicePrincipal("ec2.amazonaws.com"))
-                .managedPolicies(managedPolicies)
+                .managedPolicies(List.of(
+                        ManagedPolicy.fromAwsManagedPolicyName("AmazonSSMManagedInstanceCore"),
+                        ManagedPolicy.fromAwsManagedPolicyName("AmazonEC2ContainerRegistryReadOnly")))
                 .build();
 
         final Instance ec2Instance = new Instance(this, "kicke-EC2", InstanceProps.builder()
                 .vpc(vpc)
+                .vpcSubnets(SubnetSelection.builder()
+                        .subnetType(SubnetType.PUBLIC)
+                        .build())
                 .instanceName(groupName + "-EC2-server")
-                .instanceType(InstanceType.of(BURSTABLE3, MICRO))
+                .instanceType(InstanceType.of(InstanceClass.BURSTABLE3, InstanceSize.MICRO))
                 .machineImage(AmazonLinuxImage.Builder.create()
                         .generation(AmazonLinuxGeneration.AMAZON_LINUX_2)
                         .cpuType(AmazonLinuxCpuType.X86_64)
                         .build())
                 .securityGroup(securityGroup)
-                .vpcSubnets(SubnetSelection.builder()
-                        .subnetType(SubnetType.PUBLIC)
-                        .build())
+                .role(role)
                 .build());
 
+
         ec2Instance.addUserData(
-                "yum install docker -y",
-                "sudo systemctl start docker",
-                "aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin 292370674225.dkr.ecr.eu-north-1.amazonaws.com",
-                "docker run -d --name my-application -p 80:8080 292370674225.dkr.ecr.eu-north-1.amazonaws.com/webshop-api:latest"
+                "yum install docker -y","sudo systemctl start docker","aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin 292370674225.dkr.ecr.eu-north-1.amazonaws.com","docker run -d --name my-application -p 80:8080 292370674225.dkr.ecr.eu-north-1.amazonaws.com/webshop-api:latest"
         );
 
         final ApplicationLoadBalancer loadBalancer = new ApplicationLoadBalancer(this, "applicationLoadBalancer",
