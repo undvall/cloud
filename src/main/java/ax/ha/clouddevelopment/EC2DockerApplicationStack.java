@@ -18,9 +18,6 @@ import software.constructs.Construct;
 import java.util.Arrays;
 import java.util.List;
 
-import static software.amazon.awscdk.services.ec2.InstanceClass.BURSTABLE3;
-import static software.amazon.awscdk.services.ec2.InstanceSize.MICRO;
-
 public class EC2DockerApplicationStack extends Stack {
 
     // Do not remove these variables. The hosted zone can be used later when creating DNS records
@@ -42,27 +39,24 @@ public class EC2DockerApplicationStack extends Stack {
         final SecurityGroup securityGroup = SecurityGroup.Builder.create(this, "securityGroup")
                 .vpc(vpc)
                 .allowAllOutbound(true)
-                .securityGroupName("super-secure")
                 .build();
 
         // Defining the policies here for readability and i think it makes it easier to change in the future
-//        final List<IManagedPolicy> managedPolicies = Arrays.asList(
-//                ManagedPolicy.fromAwsManagedPolicyName("AmazonSSMManagedInstanceCore"),
-//                ManagedPolicy.fromAwsManagedPolicyName("AmazonEC2ContainerRegistryReadOnly"));
+        final List<IManagedPolicy> managedPolicies = Arrays.asList(
+                ManagedPolicy.fromAwsManagedPolicyName("AmazonSSMManagedInstanceCore"),
+                ManagedPolicy.fromAwsManagedPolicyName("AmazonEC2ContainerRegistryReadOnly"));
 
         final Role role = Role.Builder.create(this, "EC2Role")
                 .assumedBy(new ServicePrincipal("ec2.amazonaws.com"))
-                .managedPolicies(List.of(
-                        ManagedPolicy.fromAwsManagedPolicyName("AmazonSSMManagedInstanceCore"),
-                        ManagedPolicy.fromAwsManagedPolicyName("AmazonEC2ContainerRegistryReadOnly")))
+                .managedPolicies(managedPolicies)
                 .build();
 
-        final Instance ec2Instance = new Instance(this, "kicke-EC2", InstanceProps.builder()
+        final Instance ec2Instance = new Instance(this, "-ec2-assignment", InstanceProps.builder()
                 .vpc(vpc)
                 .vpcSubnets(SubnetSelection.builder()
                         .subnetType(SubnetType.PUBLIC)
                         .build())
-                .instanceName(groupName + "-EC2-server")
+                .instanceName(groupName + "-ec2-assignment")
                 .instanceType(InstanceType.of(InstanceClass.BURSTABLE3, InstanceSize.MICRO))
                 .machineImage(AmazonLinuxImage.Builder.create()
                         .generation(AmazonLinuxGeneration.AMAZON_LINUX_2)
@@ -72,10 +66,7 @@ public class EC2DockerApplicationStack extends Stack {
                 .role(role)
                 .build());
 
-
-        ec2Instance.addUserData(
-                "yum install docker -y","sudo systemctl start docker","aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin 292370674225.dkr.ecr.eu-north-1.amazonaws.com","docker run -d --name my-application -p 80:8080 292370674225.dkr.ecr.eu-north-1.amazonaws.com/webshop-api:latest"
-        );
+        ec2Instance.addUserData("yum install docker -y","sudo systemctl start docker","aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin 292370674225.dkr.ecr.eu-north-1.amazonaws.com","docker run -d --name my-application -p 80:8080 292370674225.dkr.ecr.eu-north-1.amazonaws.com/webshop-api:latest");
 
         final ApplicationLoadBalancer loadBalancer = new ApplicationLoadBalancer(this, "applicationLoadBalancer",
                 ApplicationLoadBalancerProps.builder()
@@ -87,11 +78,12 @@ public class EC2DockerApplicationStack extends Stack {
                         .build());
 
         ApplicationListener listener = loadBalancer.addListener("listener", BaseApplicationListenerProps.builder()
+                .port(80)
                 .protocol(ApplicationProtocol.HTTP)
                 .open(true)
                 .build());
 
-        listener.addTargets("targetGroup", AddApplicationTargetsProps.builder()
+        ApplicationTargetGroup targetGroup = listener.addTargets("targetGroup", AddApplicationTargetsProps.builder()
                 .port(80)
                 .targets(List.of(new InstanceTarget(ec2Instance, 80)))
                 .build());
@@ -106,11 +98,22 @@ public class EC2DockerApplicationStack extends Stack {
         loadBalancer.getConnections().allowTo(securityGroup, Port.tcp(80));
 
         // Trying to troubleshoot by outputting some information
-        // TODO the target group is unhealthy, figure out why!!!!!!!!!!!!!!!!
-        new CfnOutput(this, "TargetGroupInfo", CfnOutputProps.builder()
-                .value(loadBalancer.getLoadBalancerDnsName())
-                .description("Whats going on?!?! Whats going on?!?!")
+        new CfnOutput(this, "-ec2-assignment-Output", CfnOutputProps.builder()
+                .value(ec2Instance.getInstanceId())
+                .description("EC2 id output")
                 .build());
 
+        // Trying to troubleshoot by outputting some information
+        new CfnOutput(this, "targetGroup-Output", CfnOutputProps.builder()
+                .value("TargetGroup ARN: " + targetGroup.getTargetGroupArn())
+                .description("targetgroup info")
+                .build());
+
+        // Trying to troubleshoot by outputting some information
+        new CfnOutput(this, "loadbalancer-Output", CfnOutputProps.builder()
+                .value("Loadbalancer ARN: " + loadBalancer.getLoadBalancerArn()
+                        + "\nLoadbalancer DNS: " + loadBalancer.getLoadBalancerDnsName())
+                .description("loadbalancer output")
+                .build());
     }
 }
