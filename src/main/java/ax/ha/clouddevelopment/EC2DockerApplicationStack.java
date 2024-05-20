@@ -51,12 +51,12 @@ public class EC2DockerApplicationStack extends Stack {
                 .managedPolicies(managedPolicies)
                 .build();
 
-        final Instance ec2Instance = new Instance(this, "-ec2-assignment", InstanceProps.builder()
+        final Instance ec2Instance = new Instance(this, "-ec2-assignment2", InstanceProps.builder()
                 .vpc(vpc)
                 .vpcSubnets(SubnetSelection.builder()
                         .subnetType(SubnetType.PUBLIC)
                         .build())
-                .instanceName(groupName + "-ec2-assignment")
+                .instanceName(groupName + "-ec2-assignment2")
                 .instanceType(InstanceType.of(InstanceClass.BURSTABLE3, InstanceSize.MICRO))
                 .machineImage(AmazonLinuxImage.Builder.create()
                         .generation(AmazonLinuxGeneration.AMAZON_LINUX_2)
