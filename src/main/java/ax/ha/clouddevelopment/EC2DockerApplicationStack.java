@@ -1,9 +1,6 @@
 package ax.ha.clouddevelopment;
 
-import software.amazon.awscdk.CfnOutput;
-import software.amazon.awscdk.CfnOutputProps;
-import software.amazon.awscdk.Stack;
-import software.amazon.awscdk.StackProps;
+import software.amazon.awscdk.*;
 import software.amazon.awscdk.services.ec2.*;
 import software.amazon.awscdk.services.elasticloadbalancingv2.*;
 import software.amazon.awscdk.services.elasticloadbalancingv2.targets.InstanceTarget;
@@ -11,6 +8,10 @@ import software.amazon.awscdk.services.iam.IManagedPolicy;
 import software.amazon.awscdk.services.iam.ManagedPolicy;
 import software.amazon.awscdk.services.iam.Role;
 import software.amazon.awscdk.services.iam.ServicePrincipal;
+import software.amazon.awscdk.services.rds.Credentials;
+import software.amazon.awscdk.services.rds.DatabaseInstance;
+import software.amazon.awscdk.services.rds.DatabaseInstanceEngine;
+import software.amazon.awscdk.services.rds.DatabaseInstanceProps;
 import software.amazon.awscdk.services.route53.*;
 import software.amazon.awscdk.services.route53.targets.LoadBalancerTarget;
 import software.constructs.Construct;
@@ -66,7 +67,6 @@ public class EC2DockerApplicationStack extends Stack {
                 .role(role)
                 .build());
 
-        ec2Instance.addUserData("yum install docker -y","sudo systemctl start docker","aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin 292370674225.dkr.ecr.eu-north-1.amazonaws.com","docker run -d --name my-application -p 80:8080 292370674225.dkr.ecr.eu-north-1.amazonaws.com/webshop-api:latest");
 
         final ApplicationLoadBalancer loadBalancer = new ApplicationLoadBalancer(this, "applicationLoadBalancer",
                 ApplicationLoadBalancerProps.builder()
@@ -97,6 +97,26 @@ public class EC2DockerApplicationStack extends Stack {
 
         loadBalancer.getConnections().allowTo(securityGroup, Port.tcp(80));
 
+        String postgresUrl = "my-postgres-url.eu-north-1.rds.amazonaws.com";
+        String postgresUser = "master";
+        String postgresPassword = "mastermaster";
+
+        DatabaseInstance rds = new DatabaseInstance(this, "RDS-database", DatabaseInstanceProps.builder()
+                .engine(DatabaseInstanceEngine.POSTGRES)
+                .vpc(vpc)
+                .vpcSubnets(SubnetSelection.builder()
+                        .subnetType(SubnetType.PUBLIC)
+                        .build())
+                .credentials(Credentials.fromPassword(postgresUser, SecretValue.unsafePlainText(postgresPassword)))
+                .instanceType(InstanceType.of(InstanceClass.BURSTABLE3, InstanceSize.MICRO))
+                .removalPolicy(RemovalPolicy.DESTROY)
+                .allocatedStorage(5)
+                .build());
+
+        ec2Instance.addUserData("yum install docker -y",
+                "sudo systemctl start docker",
+                "aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin 292370674225.dkr.ecr.eu-north-1.amazonaws.com",
+                "docker run -d --name my-application -p 80:8080 292370674225.dkr.ecr.eu-north-1.amazonaws.com/webshop-api:latest");
         // Trying to troubleshoot by outputting some information
         new CfnOutput(this, "-ec2-assignment-Output", CfnOutputProps.builder()
                 .value(ec2Instance.getInstanceId())
