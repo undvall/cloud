@@ -2,18 +2,19 @@ package ax.ha.clouddevelopment;
 
 import software.amazon.awscdk.*;
 import software.amazon.awscdk.services.ec2.*;
+import software.amazon.awscdk.services.ec2.InstanceProps;
+import software.amazon.awscdk.services.ec2.InstanceType;
 import software.amazon.awscdk.services.elasticloadbalancingv2.*;
 import software.amazon.awscdk.services.elasticloadbalancingv2.targets.InstanceTarget;
 import software.amazon.awscdk.services.iam.IManagedPolicy;
 import software.amazon.awscdk.services.iam.ManagedPolicy;
 import software.amazon.awscdk.services.iam.Role;
 import software.amazon.awscdk.services.iam.ServicePrincipal;
-import software.amazon.awscdk.services.rds.Credentials;
-import software.amazon.awscdk.services.rds.DatabaseInstance;
-import software.amazon.awscdk.services.rds.DatabaseInstanceEngine;
-import software.amazon.awscdk.services.rds.DatabaseInstanceProps;
+import software.amazon.awscdk.services.rds.*;
 import software.amazon.awscdk.services.route53.*;
 import software.amazon.awscdk.services.route53.targets.LoadBalancerTarget;
+import software.amazon.awscdk.services.secretsmanager.Secret;
+import software.amazon.awscdk.services.secretsmanager.SecretStringGenerator;
 import software.constructs.Construct;
 
 import java.util.Arrays;
@@ -34,8 +35,8 @@ public class EC2DockerApplicationStack extends Stack {
 
     public EC2DockerApplicationStack(final Construct scope, final String id, final StackProps props, final String groupName) {
         super(scope, id, props);
-
         // TODO: Define your cloud resources here.
+
         final SecurityGroup ec2SecurityGroup = SecurityGroup.Builder.create(this, "ec2SecurityGroup")
                 .vpc(vpc)
                 .allowAllOutbound(true)
@@ -103,6 +104,16 @@ public class EC2DockerApplicationStack extends Stack {
 
         loadBalancer.getConnections().allowTo(ec2SecurityGroup, Port.tcp(80));
 
+        Secret databaseSecret = Secret.Builder.create(this, "databaseSecret")
+                .secretName("postgresCredentials")
+                .description("Another test using SecretZ Man4ger")
+                .generateSecretString(SecretStringGenerator.builder()
+                        .secretStringTemplate("{\"username\":\"master\"}") // Okay, defining the structure of the JSON
+                        .generateStringKey("password") // Here it recognizes that it should generate a string for the key password
+                        .build())
+                .build();
+
+        System.out.println("Databasesecret: " + databaseSecret.getSecretValue());
         String postgresUser = "master";
         String postgresPassword = "mastermaster";
 
@@ -112,7 +123,8 @@ public class EC2DockerApplicationStack extends Stack {
                 .vpcSubnets(SubnetSelection.builder()
                         .subnetType(SubnetType.PUBLIC)
                         .build())
-                .credentials(Credentials.fromPassword(postgresUser, SecretValue.unsafePlainText(postgresPassword)))
+                .credentials(Credentials.fromSecret(databaseSecret))
+//                .credentials(Credentials.fromPassword(postgresUser, SecretValue.unsafePlainText(postgresPassword)))
                 .instanceType(InstanceType.of(InstanceClass.BURSTABLE3, InstanceSize.MICRO))
                 .removalPolicy(RemovalPolicy.DESTROY)
                 .securityGroups(List.of(databaseSecurityGroup))
