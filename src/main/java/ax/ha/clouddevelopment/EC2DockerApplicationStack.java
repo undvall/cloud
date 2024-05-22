@@ -37,6 +37,17 @@ public class EC2DockerApplicationStack extends Stack {
         super(scope, id, props);
         // TODO: Define your cloud resources here.
 
+        // Creating a secret resource
+        Secret databaseSecret = Secret.Builder.create(this, "databaseSecret")
+                .secretName("postgresCredentials")
+                .description("Another test using SecretZ Man4ger")
+                .generateSecretString(SecretStringGenerator.builder()
+                        .secretStringTemplate("{\"username\":\"master\"}") // Okay, defining the structure of the JSON
+                        .generateStringKey("password") // Here it recognizes that it should generate a string for the key password
+                        .excludeCharacters("/@\" ") // Need to exclude characters to match the password template
+                        .build())
+                .build();
+
         final SecurityGroup ec2SecurityGroup = SecurityGroup.Builder.create(this, "ec2SecurityGroup")
                 .vpc(vpc)
                 .allowAllOutbound(true)
@@ -58,6 +69,9 @@ public class EC2DockerApplicationStack extends Stack {
                 .assumedBy(new ServicePrincipal("ec2.amazonaws.com"))
                 .managedPolicies(managedPolicies)
                 .build();
+
+        // Allowing the EC2 instance to read the secret
+        databaseSecret.grantRead(role);
 
         final Instance ec2Instance = new Instance(this, "-ec2-assignment2", InstanceProps.builder()
                 .vpc(vpc)
@@ -104,18 +118,14 @@ public class EC2DockerApplicationStack extends Stack {
 
         loadBalancer.getConnections().allowTo(ec2SecurityGroup, Port.tcp(80));
 
-        Secret databaseSecret = Secret.Builder.create(this, "databaseSecret")
-                .secretName("postgresCredentials")
-                .description("Another test using SecretZ Man4ger")
-                .generateSecretString(SecretStringGenerator.builder()
-                        .secretStringTemplate("{\"username\":\"master\"}") // Okay, defining the structure of the JSON
-                        .generateStringKey("password") // Here it recognizes that it should generate a string for the key password
-                        .build())
-                .build();
-
-        System.out.println("Databasesecret: " + databaseSecret.getSecretValue());
         String postgresUser = "master";
         String postgresPassword = "mastermaster";
+
+        // Probably shouldnt use this method to store the credentials
+        String secretUsername = databaseSecret.secretValueFromJson("username").unsafeUnwrap();
+        String secretPassword = databaseSecret.secretValueFromJson("password").unsafeUnwrap();
+        System.out.println("This is secretusername: " + secretUsername);
+        System.out.println("This is secretpassword: " + secretPassword);
 
         DatabaseInstance rds = new DatabaseInstance(this, "RDS-database", DatabaseInstanceProps.builder()
                 .engine(DatabaseInstanceEngine.POSTGRES)
@@ -123,8 +133,8 @@ public class EC2DockerApplicationStack extends Stack {
                 .vpcSubnets(SubnetSelection.builder()
                         .subnetType(SubnetType.PUBLIC)
                         .build())
-                .credentials(Credentials.fromSecret(databaseSecret))
-//                .credentials(Credentials.fromPassword(postgresUser, SecretValue.unsafePlainText(postgresPassword)))
+//                .credentials(Credentials.fromSecret(databaseSecret))
+                .credentials(Credentials.fromPassword(postgresUser, SecretValue.unsafePlainText(postgresPassword)))
                 .instanceType(InstanceType.of(InstanceClass.BURSTABLE3, InstanceSize.MICRO))
                 .removalPolicy(RemovalPolicy.DESTROY)
                 .securityGroups(List.of(databaseSecurityGroup))
@@ -134,6 +144,9 @@ public class EC2DockerApplicationStack extends Stack {
         rds.getConnections().allowFrom(ec2SecurityGroup, Port.tcp(5432));
         String databaseUrl = rds.getDbInstanceEndpointAddress();
 
+
+        // TODO need to pass the password in some other way i think. Figure that out then im SET!
+        // Or maybe not.
         ec2Instance.addUserData("yum install docker -y",
                 "sudo systemctl start docker",
                 "aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin 292370674225.dkr.ecr.eu-north-1.amazonaws.com",
