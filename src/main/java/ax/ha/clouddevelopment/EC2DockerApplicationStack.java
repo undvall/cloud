@@ -36,7 +36,6 @@ public class EC2DockerApplicationStack extends Stack {
         super(scope, id, props);
 
         // TODO: Define your cloud resources here.
-
         final SecurityGroup ec2SecurityGroup = SecurityGroup.Builder.create(this, "ec2SecurityGroup")
                 .vpc(vpc)
                 .allowAllOutbound(true)
@@ -75,7 +74,6 @@ public class EC2DockerApplicationStack extends Stack {
                 .role(role)
                 .build());
 
-
         final ApplicationLoadBalancer loadBalancer = new ApplicationLoadBalancer(this, "applicationLoadBalancer",
                 ApplicationLoadBalancerProps.builder()
                         .vpc(vpc)
@@ -91,7 +89,7 @@ public class EC2DockerApplicationStack extends Stack {
                 .open(true)
                 .build());
 
-        ApplicationTargetGroup targetGroup = listener.addTargets("targetGroup", AddApplicationTargetsProps.builder()
+        listener.addTargets("targetGroup", AddApplicationTargetsProps.builder()
                 .port(80)
                 .targets(List.of(new InstanceTarget(ec2Instance, 80)))
                 .build());
@@ -124,33 +122,20 @@ public class EC2DockerApplicationStack extends Stack {
         rds.getConnections().allowFrom(ec2SecurityGroup, Port.tcp(5432));
         String databaseUrl = rds.getDbInstanceEndpointAddress();
 
-        /*
-        String.format("docker run -d " +
-                        "-e DB_URL=%s " +
-                        "-e DB_USERNAME=%s " +
-                        "-e DB_PASSWORD=%s " +
-                        "-e SPRING_PROFILES_ACTIVE=postgres " +
-                        "--name my-application " +
-                        "-p 80:8080 292370674225.dkr.ecr.eu-north-1.amazonaws.com/webshop-api:latest", databaseUrl, postgresUser, postgresPassword)
-         */
         ec2Instance.addUserData("yum install docker -y",
                 "sudo systemctl start docker",
                 "aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin 292370674225.dkr.ecr.eu-north-1.amazonaws.com",
-                "docker run -d -e DB_URL=christian-sederstrom-ec2-assig-rdsdatabase5490fe01-xni0yytzt3kk.chbvabsbak05.eu-north-1.rds.amazonaws.com -e DB_USERNAME=master -e DB_PASSWORD=mastermaster -e SPRING_PROFILES_ACTIVE=postgres --name my-application -p 80:8080 292370674225.dkr.ecr.eu-north-1.amazonaws.com/webshop-api:latest");
+                "docker run -d -e DB_URL="+databaseUrl+" -e DB_USERNAME="+postgresUser+" -e DB_PASSWORD="+postgresPassword+" -e SPRING_PROFILES_ACTIVE=postgres --name my-application -p 80:8080 292370674225.dkr.ecr.eu-north-1.amazonaws.com/webshop-api:latest");
+
 
         // Trying to troubleshoot by outputting some information
         new CfnOutput(this, "-ec2-assignment-Output", CfnOutputProps.builder()
                 .value(ec2Instance.getInstanceId())
                 .description("EC2 id output")
                 .build());
-
         new CfnOutput(this, "database-endpoint", CfnOutputProps.builder()
                 .value(databaseUrl)
                 .description("Database Endpoint: ")
-                .build());
-
-        new CfnOutput(this, "securitygroup", CfnOutputProps.builder()
-                .value(ec2SecurityGroup.getSecurityGroupId())
                 .build());
     }
 }
