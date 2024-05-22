@@ -37,10 +37,17 @@ public class EC2DockerApplicationStack extends Stack {
 
         // TODO: Define your cloud resources here.
 
-        final SecurityGroup securityGroup = SecurityGroup.Builder.create(this, "securityGroup")
+        final SecurityGroup ec2SecurityGroup = SecurityGroup.Builder.create(this, "ec2SecurityGroup")
                 .vpc(vpc)
                 .allowAllOutbound(true)
                 .build();
+
+        final SecurityGroup databaseSecurityGroup = SecurityGroup.Builder.create(this, "databaseSecurityGroup")
+                .vpc(vpc)
+                .allowAllOutbound(true)
+                .build();
+
+        databaseSecurityGroup.addIngressRule(ec2SecurityGroup, Port.tcp(5432), "Allow postgres access to EC2");
 
         // Defining the policies here for readability and i think it makes it easier to change in the future
         final List<IManagedPolicy> managedPolicies = Arrays.asList(
@@ -63,7 +70,8 @@ public class EC2DockerApplicationStack extends Stack {
                         .generation(AmazonLinuxGeneration.AMAZON_LINUX_2)
                         .cpuType(AmazonLinuxCpuType.X86_64)
                         .build())
-                .securityGroup(securityGroup)
+                .securityGroup(ec2SecurityGroup)
+                .userDataCausesReplacement(true)
                 .role(role)
                 .build());
 
@@ -95,9 +103,8 @@ public class EC2DockerApplicationStack extends Stack {
                 .recordName(groupName + "-api.cloud-ha.com")
                 .build());
 
-        loadBalancer.getConnections().allowTo(securityGroup, Port.tcp(80));
+        loadBalancer.getConnections().allowTo(ec2SecurityGroup, Port.tcp(80));
 
-        String postgresUrl = "my-postgres-url.eu-north-1.rds.amazonaws.com";
         String postgresUser = "master";
         String postgresPassword = "mastermaster";
 
@@ -110,30 +117,40 @@ public class EC2DockerApplicationStack extends Stack {
                 .credentials(Credentials.fromPassword(postgresUser, SecretValue.unsafePlainText(postgresPassword)))
                 .instanceType(InstanceType.of(InstanceClass.BURSTABLE3, InstanceSize.MICRO))
                 .removalPolicy(RemovalPolicy.DESTROY)
+                .securityGroups(List.of(databaseSecurityGroup))
                 .allocatedStorage(5)
                 .build());
 
+        rds.getConnections().allowFrom(ec2SecurityGroup, Port.tcp(5432));
+        String databaseUrl = rds.getDbInstanceEndpointAddress();
+
+        /*
+        String.format("docker run -d " +
+                        "-e DB_URL=%s " +
+                        "-e DB_USERNAME=%s " +
+                        "-e DB_PASSWORD=%s " +
+                        "-e SPRING_PROFILES_ACTIVE=postgres " +
+                        "--name my-application " +
+                        "-p 80:8080 292370674225.dkr.ecr.eu-north-1.amazonaws.com/webshop-api:latest", databaseUrl, postgresUser, postgresPassword)
+         */
         ec2Instance.addUserData("yum install docker -y",
                 "sudo systemctl start docker",
                 "aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin 292370674225.dkr.ecr.eu-north-1.amazonaws.com",
-                "docker run -d --name my-application -p 80:8080 292370674225.dkr.ecr.eu-north-1.amazonaws.com/webshop-api:latest");
+                "docker run -d -e DB_URL=christian-sederstrom-ec2-assig-rdsdatabase5490fe01-xni0yytzt3kk.chbvabsbak05.eu-north-1.rds.amazonaws.com -e DB_USERNAME=master -e DB_PASSWORD=mastermaster -e SPRING_PROFILES_ACTIVE=postgres --name my-application -p 80:8080 292370674225.dkr.ecr.eu-north-1.amazonaws.com/webshop-api:latest");
+
         // Trying to troubleshoot by outputting some information
         new CfnOutput(this, "-ec2-assignment-Output", CfnOutputProps.builder()
                 .value(ec2Instance.getInstanceId())
                 .description("EC2 id output")
                 .build());
 
-        // Trying to troubleshoot by outputting some information
-        new CfnOutput(this, "targetGroup-Output", CfnOutputProps.builder()
-                .value("TargetGroup ARN: " + targetGroup.getTargetGroupArn())
-                .description("targetgroup info")
+        new CfnOutput(this, "database-endpoint", CfnOutputProps.builder()
+                .value(databaseUrl)
+                .description("Database Endpoint: ")
                 .build());
 
-        // Trying to troubleshoot by outputting some information
-        new CfnOutput(this, "loadbalancer-Output", CfnOutputProps.builder()
-                .value("Loadbalancer ARN: " + loadBalancer.getLoadBalancerArn()
-                        + "\nLoadbalancer DNS: " + loadBalancer.getLoadBalancerDnsName())
-                .description("loadbalancer output")
+        new CfnOutput(this, "securitygroup", CfnOutputProps.builder()
+                .value(ec2SecurityGroup.getSecurityGroupId())
                 .build());
     }
 }
