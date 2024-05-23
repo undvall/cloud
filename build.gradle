@@ -22,6 +22,4 @@ java {
 dependencies {
     implementation 'software.amazon.awscdk:aws-cdk-lib:2.139.0'
     implementation 'software.constructs:constructs:10.3.0'
-    implementation group: 'software.amazon.awssdk', name: 'secretsmanager', version: '2.25.57'
-
 }

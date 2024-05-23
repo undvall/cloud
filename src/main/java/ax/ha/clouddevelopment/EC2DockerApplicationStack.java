@@ -1,27 +1,22 @@
 package ax.ha.clouddevelopment;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import software.amazon.awscdk.*;
 import software.amazon.awscdk.services.ec2.*;
-import software.amazon.awscdk.services.ec2.InstanceProps;
-import software.amazon.awscdk.services.ec2.InstanceType;
 import software.amazon.awscdk.services.elasticloadbalancingv2.*;
 import software.amazon.awscdk.services.elasticloadbalancingv2.targets.InstanceTarget;
 import software.amazon.awscdk.services.iam.IManagedPolicy;
 import software.amazon.awscdk.services.iam.ManagedPolicy;
 import software.amazon.awscdk.services.iam.Role;
 import software.amazon.awscdk.services.iam.ServicePrincipal;
-import software.amazon.awscdk.services.rds.*;
+import software.amazon.awscdk.services.rds.Credentials;
+import software.amazon.awscdk.services.rds.DatabaseInstance;
+import software.amazon.awscdk.services.rds.DatabaseInstanceEngine;
+import software.amazon.awscdk.services.rds.DatabaseInstanceProps;
 import software.amazon.awscdk.services.route53.*;
 import software.amazon.awscdk.services.route53.targets.LoadBalancerTarget;
 import software.amazon.awscdk.services.secretsmanager.Secret;
 import software.amazon.awscdk.services.secretsmanager.SecretStringGenerator;
-import software.amazon.awssdk.services.secretsmanager.model.GetSecretValueRequest;
-import software.amazon.awssdk.services.secretsmanager.model.GetSecretValueResponse;
 import software.constructs.Construct;
-import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
 
 import java.util.Arrays;
 import java.util.List;
@@ -38,42 +33,6 @@ public class EC2DockerApplicationStack extends Stack {
     private final IVpc vpc = Vpc.fromLookup(this, "MyVpc", VpcLookupOptions.builder()
             .isDefault(true)
             .build());
-
-    public static String[] getSecret(String secretName) {
-        Region region = Region.of("eu-north-1");
-
-        // Create a Secrets Manager client for handling the request!
-        SecretsManagerClient client = SecretsManagerClient.builder()
-                .region(region)
-                .build();
-
-        // Creating the request based on the secretname
-        GetSecretValueRequest getSecretValueRequest = GetSecretValueRequest.builder()
-                .secretId(secretName)
-                .build();
-
-        GetSecretValueResponse getSecretValueResponse;
-
-        try {
-            getSecretValueResponse = client.getSecretValue(getSecretValueRequest);
-        } catch (Exception e) {
-            throw new RuntimeException("Something went wrong with the Secrets Manager " + e);
-        }
-
-        String secretString = getSecretValueResponse.secretString();
-
-        // Parse the JSON secret string and only extracting the password from the JSON object
-        try {
-            ObjectMapper objectMapper = new ObjectMapper();
-            JsonNode jsonNode = objectMapper.readTree(secretString);
-            String username = jsonNode.get("username").asText();
-            String password = jsonNode.get("password").asText();
-
-            return new String[]{username, password};
-        } catch (Exception e) {
-            throw new RuntimeException("Error parsing the secret JSON: " + e.getMessage(), e);
-        }
-    }
     public EC2DockerApplicationStack(final Construct scope, final String id, final StackProps props, final String groupName) {
         super(scope, id, props);
         // TODO: Define your cloud resources here.
@@ -88,6 +47,8 @@ public class EC2DockerApplicationStack extends Stack {
                         .excludeCharacters("/@\" ") // Need to exclude characters to match the password template
                         .build())
                 .build();
+
+        // cli command to get the password: aws secretsmanager get-secret-value --secret-id postgresCredentials --query SecretString --output text | jq -r .password
         final SecurityGroup ec2SecurityGroup = SecurityGroup.Builder.create(this, "ec2SecurityGroup")
                 .vpc(vpc)
                 .allowAllOutbound(true)
@@ -162,9 +123,6 @@ public class EC2DockerApplicationStack extends Stack {
         String postgresUser = "master";
         String postgresPassword = "mastermaster";
 
-        // The password matches the one created by the secret.
-        String[] secretInfo = getSecret("postgresCredentials");
-
         DatabaseInstance rds = new DatabaseInstance(this, "RDS-database", DatabaseInstanceProps.builder()
                 .engine(DatabaseInstanceEngine.POSTGRES)
                 .vpc(vpc)
@@ -185,10 +143,20 @@ public class EC2DockerApplicationStack extends Stack {
 
         // TODO need to pass the password in some other way i think. Figure that out then im SET!
         // Or maybe not.
-        ec2Instance.addUserData("yum install docker -y",
+        // Think im close now but i still cant pass the password like that.
+        ec2Instance.addUserData(
+                "yum install -y docker jq",
                 "sudo systemctl start docker",
                 "aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin 292370674225.dkr.ecr.eu-north-1.amazonaws.com",
-                "docker run -d -e DB_URL="+databaseUrl+" -e DB_USERNAME="+postgresUser+" -e DB_PASSWORD="+postgresPassword+" -e SPRING_PROFILES_ACTIVE=postgres --name my-application -p 80:8080 292370674225.dkr.ecr.eu-north-1.amazonaws.com/webshop-api:latest");
+                "DB_PASSWORD=$(aws secretsmanager get-secret-value --secret-id postgresCredentials --query SecretString --output text | jq -r .password)",
+                "docker run -d -e DB_URL=" + databaseUrl + " -e DB_USERNAME=" + postgresUser + " -e DB_PASSWORD=$DB_PASSWORD -e SPRING_PROFILES_ACTIVE=postgres --name my-application -p 80:8080 292370674225.dkr.ecr.eu-north-1.amazonaws.com/webshop-api:latest"
+        );
+
+
+//        ec2Instance.addUserData("yum install docker -y",
+//                "sudo systemctl start docker",
+//                "aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin 292370674225.dkr.ecr.eu-north-1.amazonaws.com",
+//                "docker run -d -e DB_URL="+databaseUrl+" -e DB_USERNAME="+postgresUser+" -e DB_PASSWORD="+postgresPassword+" -e SPRING_PROFILES_ACTIVE=postgres --name my-application -p 80:8080 292370674225.dkr.ecr.eu-north-1.amazonaws.com/webshop-api:latest");
 
 
         // Trying to troubleshoot by outputting some information
