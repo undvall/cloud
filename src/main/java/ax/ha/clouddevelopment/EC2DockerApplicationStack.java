@@ -1,5 +1,7 @@
 package ax.ha.clouddevelopment;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import software.amazon.awscdk.*;
 import software.amazon.awscdk.services.ec2.*;
 import software.amazon.awscdk.services.ec2.InstanceProps;
@@ -15,7 +17,11 @@ import software.amazon.awscdk.services.route53.*;
 import software.amazon.awscdk.services.route53.targets.LoadBalancerTarget;
 import software.amazon.awscdk.services.secretsmanager.Secret;
 import software.amazon.awscdk.services.secretsmanager.SecretStringGenerator;
+import software.amazon.awssdk.services.secretsmanager.model.GetSecretValueRequest;
+import software.amazon.awssdk.services.secretsmanager.model.GetSecretValueResponse;
 import software.constructs.Construct;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
 
 import java.util.Arrays;
 import java.util.List;
@@ -33,6 +39,41 @@ public class EC2DockerApplicationStack extends Stack {
             .isDefault(true)
             .build());
 
+    public static String[] getSecret(String secretName) {
+        Region region = Region.of("eu-north-1");
+
+        // Create a Secrets Manager client for handling the request!
+        SecretsManagerClient client = SecretsManagerClient.builder()
+                .region(region)
+                .build();
+
+        // Creating the request based on the secretname
+        GetSecretValueRequest getSecretValueRequest = GetSecretValueRequest.builder()
+                .secretId(secretName)
+                .build();
+
+        GetSecretValueResponse getSecretValueResponse;
+
+        try {
+            getSecretValueResponse = client.getSecretValue(getSecretValueRequest);
+        } catch (Exception e) {
+            throw new RuntimeException("Something went wrong with the Secrets Manager " + e);
+        }
+
+        String secretString = getSecretValueResponse.secretString();
+
+        // Parse the JSON secret string and only extracting the password from the JSON object
+        try {
+            ObjectMapper objectMapper = new ObjectMapper();
+            JsonNode jsonNode = objectMapper.readTree(secretString);
+            String username = jsonNode.get("username").asText();
+            String password = jsonNode.get("password").asText();
+
+            return new String[]{username, password};
+        } catch (Exception e) {
+            throw new RuntimeException("Error parsing the secret JSON: " + e.getMessage(), e);
+        }
+    }
     public EC2DockerApplicationStack(final Construct scope, final String id, final StackProps props, final String groupName) {
         super(scope, id, props);
         // TODO: Define your cloud resources here.
@@ -47,7 +88,6 @@ public class EC2DockerApplicationStack extends Stack {
                         .excludeCharacters("/@\" ") // Need to exclude characters to match the password template
                         .build())
                 .build();
-
         final SecurityGroup ec2SecurityGroup = SecurityGroup.Builder.create(this, "ec2SecurityGroup")
                 .vpc(vpc)
                 .allowAllOutbound(true)
@@ -70,7 +110,8 @@ public class EC2DockerApplicationStack extends Stack {
                 .managedPolicies(managedPolicies)
                 .build();
 
-        // Allowing the EC2 instance to read the secret
+        // Allowing the EC2 instance to read the secret so it
+        // can access the database using the password tied to the secret
         databaseSecret.grantRead(role);
 
         final Instance ec2Instance = new Instance(this, "-ec2-assignment2", InstanceProps.builder()
@@ -121,11 +162,8 @@ public class EC2DockerApplicationStack extends Stack {
         String postgresUser = "master";
         String postgresPassword = "mastermaster";
 
-        // Probably shouldnt use this method to store the credentials
-        String secretUsername = databaseSecret.secretValueFromJson("username").unsafeUnwrap();
-        String secretPassword = databaseSecret.secretValueFromJson("password").unsafeUnwrap();
-        System.out.println("This is secretusername: " + secretUsername);
-        System.out.println("This is secretpassword: " + secretPassword);
+        // The password matches the one created by the secret.
+        String[] secretInfo = getSecret("postgresCredentials");
 
         DatabaseInstance rds = new DatabaseInstance(this, "RDS-database", DatabaseInstanceProps.builder()
                 .engine(DatabaseInstanceEngine.POSTGRES)
@@ -133,8 +171,8 @@ public class EC2DockerApplicationStack extends Stack {
                 .vpcSubnets(SubnetSelection.builder()
                         .subnetType(SubnetType.PUBLIC)
                         .build())
-//                .credentials(Credentials.fromSecret(databaseSecret))
-                .credentials(Credentials.fromPassword(postgresUser, SecretValue.unsafePlainText(postgresPassword)))
+                .credentials(Credentials.fromSecret(databaseSecret))
+//                .credentials(Credentials.fromPassword(postgresUser, SecretValue.unsafePlainText(postgresPassword)))
                 .instanceType(InstanceType.of(InstanceClass.BURSTABLE3, InstanceSize.MICRO))
                 .removalPolicy(RemovalPolicy.DESTROY)
                 .securityGroups(List.of(databaseSecurityGroup))
@@ -162,5 +200,9 @@ public class EC2DockerApplicationStack extends Stack {
                 .value(databaseUrl)
                 .description("Database Endpoint: ")
                 .build());
+//        new CfnOutput(this, "secretpassword", CfnOutputProps.builder()
+//                .value(secretPassword)
+//                .description("secretpassword output: ")
+//                .build());
     }
 }
