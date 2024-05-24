@@ -1,6 +1,8 @@
 package ax.ha.clouddevelopment;
 
 import software.amazon.awscdk.*;
+import software.amazon.awscdk.services.autoscaling.AutoScalingGroup;
+import software.amazon.awscdk.services.autoscaling.AutoScalingGroupProps;
 import software.amazon.awscdk.services.ec2.*;
 import software.amazon.awscdk.services.elasticloadbalancingv2.*;
 import software.amazon.awscdk.services.elasticloadbalancingv2.targets.InstanceTarget;
@@ -74,22 +76,6 @@ public class EC2DockerApplicationStack extends Stack {
         // can access the database using the password tied to the secret
         databaseSecret.grantRead(role);
 
-        final Instance ec2Instance = new Instance(this, "-ec2-assignment2", InstanceProps.builder()
-                .vpc(vpc)
-                .vpcSubnets(SubnetSelection.builder()
-                        .subnetType(SubnetType.PUBLIC)
-                        .build())
-                .instanceName(groupName + "-ec2-assignment2")
-                .instanceType(InstanceType.of(InstanceClass.BURSTABLE3, InstanceSize.MICRO))
-                .machineImage(AmazonLinuxImage.Builder.create()
-                        .generation(AmazonLinuxGeneration.AMAZON_LINUX_2)
-                        .cpuType(AmazonLinuxCpuType.X86_64)
-                        .build())
-                .securityGroup(ec2SecurityGroup)
-                .userDataCausesReplacement(true)
-                .role(role)
-                .build());
-
         final ApplicationLoadBalancer loadBalancer = new ApplicationLoadBalancer(this, "applicationLoadBalancer",
                 ApplicationLoadBalancerProps.builder()
                         .vpc(vpc)
@@ -103,11 +89,6 @@ public class EC2DockerApplicationStack extends Stack {
                 .port(80)
                 .protocol(ApplicationProtocol.HTTP)
                 .open(true)
-                .build());
-
-        listener.addTargets("targetGroup", AddApplicationTargetsProps.builder()
-                .port(80)
-                .targets(List.of(new InstanceTarget(ec2Instance, 80)))
                 .build());
 
         new RecordSet(this, "loadBalancer", RecordSetProps.builder()
@@ -137,19 +118,44 @@ public class EC2DockerApplicationStack extends Stack {
         rds.getConnections().allowFrom(ec2SecurityGroup, Port.tcp(5432));
         String databaseUrl = rds.getDbInstanceEndpointAddress();
 
-        ec2Instance.addUserData(
+        UserData userData = UserData.forLinux();
+        userData.addCommands(
                 "yum install -y docker jq",
                 "sudo systemctl start docker",
                 "aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin 292370674225.dkr.ecr.eu-north-1.amazonaws.com",
                 "DB_PASSWORD=$(aws secretsmanager get-secret-value --secret-id postgresCredentials --query SecretString --output text --region eu-north-1 | jq -r .password)",
                 "docker run -d -e DB_URL=" + databaseUrl + " -e DB_USERNAME=" + postgresUser + " -e DB_PASSWORD=$DB_PASSWORD -e SPRING_PROFILES_ACTIVE=postgres --name my-application -p 80:8080 292370674225.dkr.ecr.eu-north-1.amazonaws.com/webshop-api:latest"
         );
-
-        // Trying to troubleshoot by outputting some information
-        new CfnOutput(this, "-ec2-assignment-Output", CfnOutputProps.builder()
-                .value(ec2Instance.getInstanceId())
-                .description("EC2 id output")
+        // Launch Template for my autoscaling group
+        LaunchTemplate launchTemplate = new LaunchTemplate(this, "template", LaunchTemplateProps.builder()
+                .machineImage(AmazonLinuxImage.Builder.create()
+                        .generation(AmazonLinuxGeneration.AMAZON_LINUX_2)
+                        .cpuType(AmazonLinuxCpuType.X86_64)
+                        .build())
+                .instanceType(InstanceType.of(InstanceClass.BURSTABLE3, InstanceSize.MICRO))
+                .securityGroup(ec2SecurityGroup)
+                .userData(userData)
+                .role(role)
                 .build());
+
+        // Trying to create an autoscaling group
+        AutoScalingGroup autoScalingGroup = new AutoScalingGroup(this, "autoScalingGroup",
+                AutoScalingGroupProps.builder()
+                        .vpc(vpc)
+                        .launchTemplate(launchTemplate)
+                        .vpcSubnets(SubnetSelection.builder()
+                                .subnetType(SubnetType.PUBLIC)
+                                .build())
+                        .desiredCapacity(2)
+                        .minCapacity(2)
+                        .maxCapacity(5)
+                        .build());
+
+        listener.addTargets("targetGroup", AddApplicationTargetsProps.builder()
+                .port(80)
+                .targets(List.of(autoScalingGroup)) // Instead of my EC2 instance the autoscaling group should be the target
+                .build());
+
         new CfnOutput(this, "database-endpoint", CfnOutputProps.builder()
                 .value(databaseUrl)
                 .description("Database Endpoint: ")
