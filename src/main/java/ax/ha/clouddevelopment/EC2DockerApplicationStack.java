@@ -48,7 +48,6 @@ public class EC2DockerApplicationStack extends Stack {
                         .build())
                 .build();
 
-        // cli command to get the password: aws secretsmanager get-secret-value --secret-id postgresCredentials --query SecretString --output text | jq -r .password
         final SecurityGroup ec2SecurityGroup = SecurityGroup.Builder.create(this, "ec2SecurityGroup")
                 .vpc(vpc)
                 .allowAllOutbound(true)
@@ -121,7 +120,6 @@ public class EC2DockerApplicationStack extends Stack {
         loadBalancer.getConnections().allowTo(ec2SecurityGroup, Port.tcp(80));
 
         String postgresUser = "master";
-        String postgresPassword = "mastermaster";
 
         DatabaseInstance rds = new DatabaseInstance(this, "RDS-database", DatabaseInstanceProps.builder()
                 .engine(DatabaseInstanceEngine.POSTGRES)
@@ -130,7 +128,6 @@ public class EC2DockerApplicationStack extends Stack {
                         .subnetType(SubnetType.PUBLIC)
                         .build())
                 .credentials(Credentials.fromSecret(databaseSecret))
-//                .credentials(Credentials.fromPassword(postgresUser, SecretValue.unsafePlainText(postgresPassword)))
                 .instanceType(InstanceType.of(InstanceClass.BURSTABLE3, InstanceSize.MICRO))
                 .removalPolicy(RemovalPolicy.DESTROY)
                 .securityGroups(List.of(databaseSecurityGroup))
@@ -140,24 +137,13 @@ public class EC2DockerApplicationStack extends Stack {
         rds.getConnections().allowFrom(ec2SecurityGroup, Port.tcp(5432));
         String databaseUrl = rds.getDbInstanceEndpointAddress();
 
-
-        // TODO need to pass the password in some other way i think. Figure that out then im SET!
-        // Or maybe not.
-        // Think im close now but i still cant pass the password like that.
         ec2Instance.addUserData(
                 "yum install -y docker jq",
                 "sudo systemctl start docker",
                 "aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin 292370674225.dkr.ecr.eu-north-1.amazonaws.com",
-                "DB_PASSWORD=$(aws secretsmanager get-secret-value --secret-id postgresCredentials --query SecretString --output text | jq -r .password)",
+                "DB_PASSWORD=$(aws secretsmanager get-secret-value --secret-id postgresCredentials --query SecretString --output text --region eu-north-1 | jq -r .password)",
                 "docker run -d -e DB_URL=" + databaseUrl + " -e DB_USERNAME=" + postgresUser + " -e DB_PASSWORD=$DB_PASSWORD -e SPRING_PROFILES_ACTIVE=postgres --name my-application -p 80:8080 292370674225.dkr.ecr.eu-north-1.amazonaws.com/webshop-api:latest"
         );
-
-
-//        ec2Instance.addUserData("yum install docker -y",
-//                "sudo systemctl start docker",
-//                "aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin 292370674225.dkr.ecr.eu-north-1.amazonaws.com",
-//                "docker run -d -e DB_URL="+databaseUrl+" -e DB_USERNAME="+postgresUser+" -e DB_PASSWORD="+postgresPassword+" -e SPRING_PROFILES_ACTIVE=postgres --name my-application -p 80:8080 292370674225.dkr.ecr.eu-north-1.amazonaws.com/webshop-api:latest");
-
 
         // Trying to troubleshoot by outputting some information
         new CfnOutput(this, "-ec2-assignment-Output", CfnOutputProps.builder()
@@ -168,9 +154,5 @@ public class EC2DockerApplicationStack extends Stack {
                 .value(databaseUrl)
                 .description("Database Endpoint: ")
                 .build());
-//        new CfnOutput(this, "secretpassword", CfnOutputProps.builder()
-//                .value(secretPassword)
-//                .description("secretpassword output: ")
-//                .build());
     }
 }
